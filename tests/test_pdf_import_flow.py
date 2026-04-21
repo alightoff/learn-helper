@@ -176,6 +176,7 @@ class PdfImportFlowTest(unittest.TestCase):
             self.assertIn("Open original file", viewer_response.text)
             self.assertIn('data-outline-page="1"', viewer_response.text)
             self.assertIn('data-outline-page="2"', viewer_response.text)
+            self.assertIn(f'/resources/{outlined_resource.id}?page=2#pdf-reader', viewer_response.text)
 
             plain_viewer_response = self.client.get(f"/resources/{plain_resource.id}")
             self.assertEqual(plain_viewer_response.status_code, 200)

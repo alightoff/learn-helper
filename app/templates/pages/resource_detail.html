@@ -1,25 +1,27 @@
 {% extends "layouts/base.html" %}
 
-{% macro render_outline(nodes) -%}
+{% macro render_outline(nodes, resource_url) -%}
   {% if nodes %}
     <ol class="viewer-outline">
       {% for node in nodes %}
         <li class="viewer-outline__item">
-          <button
-            class="viewer-outline__link"
-            type="button"
-            data-outline-page="{{ node.item.page_number or '' }}"
-            data-outline-id="{{ node.item.id }}"
-            {% if not node.item.page_number %}disabled{% endif %}
-          >
-            <span class="viewer-outline__title">{{ node.item.title }}</span>
-            {% if node.item.page_number %}
+          {% if node.item.page_number %}
+            <a
+              class="viewer-outline__link"
+              href="{{ resource_url }}?page={{ node.item.page_number }}#pdf-reader"
+              data-outline-page="{{ node.item.page_number }}"
+              data-outline-id="{{ node.item.id }}"
+            >
+              <span class="viewer-outline__title">{{ node.item.title }}</span>
               <span class="viewer-outline__meta">p. {{ node.item.page_number }}</span>
-            {% else %}
+            </a>
+          {% else %}
+            <span class="viewer-outline__link viewer-outline__link--disabled">
+              <span class="viewer-outline__title">{{ node.item.title }}</span>
               <span class="viewer-outline__meta">No page target</span>
-            {% endif %}
-          </button>
-          {{ render_outline(node.children) }}
+            </span>
+          {% endif %}
+          {{ render_outline(node.children, resource_url) }}
         </li>
       {% endfor %}
     </ol>
@@ -51,7 +53,7 @@
 
     <section class="resource-viewer-layout">
       <aside class="resource-sidebar">
-        <section class="panel panel--tight">
+        <section class="panel panel--tight resource-outline-panel">
           <div class="panel__header">
             <div>
               <h3>Outline</h3>
@@ -60,16 +62,18 @@
             <span class="pill">{{ outline_count }} item{% if outline_count != 1 %}s{% endif %}</span>
           </div>
 
-          {% if outline_tree %}
-            {{ render_outline(outline_tree) }}
-          {% else %}
-            <div class="empty-state empty-state--inline">
-              No outline extracted yet. The reader still works and the structure can be added manually later.
-            </div>
-          {% endif %}
+          <div class="resource-outline-panel__body">
+            {% if outline_tree %}
+              {{ render_outline(outline_tree, request.url_for('resource_detail', resource_id=resource.id)) }}
+            {% else %}
+              <div class="empty-state empty-state--inline">
+                No outline extracted yet. The reader still works and the structure can be added manually later.
+              </div>
+            {% endif %}
+          </div>
         </section>
 
-        <section class="panel panel--tight">
+        <section class="panel panel--tight resource-status-panel">
           <div class="panel__header">
             <div>
               <h3>Resource status</h3>
@@ -101,6 +105,7 @@
       <div class="resource-main">
         <section class="panel panel--tight">
           <div
+            id="pdf-reader"
             class="pdf-viewer"
             data-pdf-resource-viewer
             data-resource-id="{{ resource.id }}"

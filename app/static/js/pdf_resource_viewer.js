@@ -12,6 +12,7 @@ if (viewerRoot instanceof HTMLElement) {
 }
 
 async function initPdfResourceViewer(root) {
+  const viewerLayout = root.closest(".resource-viewer-layout") ?? document;
   const canvas = root.querySelector("[data-pdf-canvas]");
   const pageInput = root.querySelector("[data-page-input]");
   const pageLabel = root.querySelector("[data-page-label]");
@@ -20,8 +21,8 @@ async function initPdfResourceViewer(root) {
   const scaleSelect = root.querySelector("[data-scale-select]");
   const loadingMessage = root.querySelector("[data-pdf-loading]");
   const errorMessage = root.querySelector("[data-pdf-error]");
-  const outlineButtons = Array.from(root.querySelectorAll("[data-outline-page]")).filter(
-    (element) => element instanceof HTMLButtonElement,
+  const outlineLinks = Array.from(viewerLayout.querySelectorAll("[data-outline-page]")).filter(
+    (element) => element instanceof HTMLAnchorElement,
   );
 
   if (!(canvas instanceof HTMLCanvasElement)) {
@@ -37,7 +38,7 @@ async function initPdfResourceViewer(root) {
   let pdfDocument = null;
   let currentPage = clampPositiveNumber(root.dataset.initialPage, 1);
   let scale = clampScale(scaleSelect instanceof HTMLSelectElement ? scaleSelect.value : "1.25");
-  let activeOutlineButton = null;
+  let activeOutlineLink = null;
   let activeRenderTask = null;
   let renderVersion = 0;
 
@@ -83,9 +84,14 @@ async function initPdfResourceViewer(root) {
       });
     }
 
-    outlineButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const outlinePage = clampPositiveNumber(button.dataset.outlinePage, currentPage);
+    outlineLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        if (!pdfDocument) {
+          return;
+        }
+
+        event.preventDefault();
+        const outlinePage = clampPositiveNumber(link.dataset.outlinePage, currentPage);
         setCurrentPage(outlinePage);
       });
     });
@@ -176,20 +182,20 @@ async function initPdfResourceViewer(root) {
   }
 
   function highlightActiveOutline() {
-    const nextActiveButton = findActiveOutlineButton(outlineButtons, currentPage);
-    if (activeOutlineButton === nextActiveButton) {
+    const nextActiveLink = findActiveOutlineLink(outlineLinks, currentPage);
+    if (activeOutlineLink === nextActiveLink) {
       return;
     }
 
-    if (activeOutlineButton instanceof HTMLButtonElement) {
-      activeOutlineButton.classList.remove("is-active");
+    if (activeOutlineLink instanceof HTMLElement) {
+      activeOutlineLink.classList.remove("is-active");
     }
 
-    activeOutlineButton = nextActiveButton;
+    activeOutlineLink = nextActiveLink;
 
-    if (activeOutlineButton instanceof HTMLButtonElement) {
-      activeOutlineButton.classList.add("is-active");
-      activeOutlineButton.scrollIntoView({ block: "nearest" });
+    if (activeOutlineLink instanceof HTMLElement) {
+      activeOutlineLink.classList.add("is-active");
+      activeOutlineLink.scrollIntoView({ block: "nearest" });
     }
   }
 
@@ -236,14 +242,14 @@ async function loadDocument(fileUrl) {
   return loadingTask.promise;
 }
 
-function findActiveOutlineButton(buttons, currentPage) {
+function findActiveOutlineLink(links, currentPage) {
   let bestMatch = null;
   let bestPage = 0;
 
-  buttons.forEach((button) => {
-    const page = clampPositiveNumber(button.dataset.outlinePage, 0);
+  links.forEach((link) => {
+    const page = clampPositiveNumber(link.dataset.outlinePage, 0);
     if (page <= currentPage && page >= bestPage) {
-      bestMatch = button;
+      bestMatch = link;
       bestPage = page;
     }
   });
