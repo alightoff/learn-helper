@@ -381,6 +381,203 @@ class PdfImportFlowTest(unittest.TestCase):
         self.assertIn('id="page-progress-panel"', plain_viewer_response.text)
         self.assertIn('data-current-page-status="hard"', plain_viewer_response.text)
 
+    def test_review_queue_filters_and_source_links(self) -> None:
+        primary_course_response = self.client.post(
+            "/courses",
+            data={
+                "title": "Review Queue Course",
+                "topic": "Memory",
+                "description": "Primary course for review queue checks.",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(primary_course_response.status_code, 303)
+        primary_course_id = int(urlparse(primary_course_response.headers["location"]).path.rstrip("/").split("/")[-1])
+
+        secondary_course_response = self.client.post(
+            "/courses",
+            data={
+                "title": "Secondary Review Course",
+                "topic": "Practice",
+                "description": "Secondary course for filter checks.",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(secondary_course_response.status_code, 303)
+        secondary_course_id = int(urlparse(secondary_course_response.headers["location"]).path.rstrip("/").split("/")[-1])
+
+        for course_id, module_title in (
+            (primary_course_id, "Queue Module A"),
+            (primary_course_id, "Queue Module B"),
+            (secondary_course_id, "Queue Module C"),
+        ):
+            create_module_response = self.client.post(
+                f"/courses/{course_id}/modules",
+                data={
+                    "title": module_title,
+                    "description": f"Module {module_title} for review queue checks.",
+                },
+                follow_redirects=False,
+            )
+            self.assertEqual(create_module_response.status_code, 303)
+
+        with SessionLocal() as session:
+            primary_module_a = (
+                session.query(Module)
+                .filter(Module.course_id == primary_course_id, Module.title == "Queue Module A")
+                .one()
+            )
+            primary_module_b = (
+                session.query(Module)
+                .filter(Module.course_id == primary_course_id, Module.title == "Queue Module B")
+                .one()
+            )
+            secondary_module_c = (
+                session.query(Module)
+                .filter(Module.course_id == secondary_course_id, Module.title == "Queue Module C")
+                .one()
+            )
+
+        for module_id, title, with_outline in (
+            (primary_module_a.id, "Queue Outline PDF", True),
+            (primary_module_a.id, "Queue Page PDF", False),
+            (primary_module_b.id, "Queue Module B PDF", False),
+            (secondary_module_c.id, "Queue Secondary PDF", False),
+        ):
+            import_response = self.client.post(
+                f"/modules/{module_id}/resources/pdf",
+                data={
+                    "title": title,
+                    "description": f"{title} description.",
+                },
+                files={
+                    "file": (
+                        f"{title.lower().replace(' ', '-')}.pdf",
+                        _build_pdf_bytes(with_outline=with_outline),
+                        "application/pdf",
+                    )
+                },
+                follow_redirects=False,
+            )
+            self.assertEqual(import_response.status_code, 303)
+
+        with SessionLocal() as session:
+            outline_resource = session.query(Resource).filter(Resource.title == "Queue Outline PDF").one()
+            page_resource = session.query(Resource).filter(Resource.title == "Queue Page PDF").one()
+            module_b_resource = session.query(Resource).filter(Resource.title == "Queue Module B PDF").one()
+            secondary_resource = session.query(Resource).filter(Resource.title == "Queue Secondary PDF").one()
+            outline_items = (
+                session.query(ResourceOutlineItem)
+                .filter(ResourceOutlineItem.resource_id == outline_resource.id)
+                .order_by(ResourceOutlineItem.id)
+                .all()
+            )
+            root_item = next(item for item in outline_items if item.parent_id is None)
+            child_item = next(item for item in outline_items if item.parent_id == root_item.id)
+
+        outline_review_response = self.client.post(
+            f"/resources/{outline_resource.id}/outline-items/{child_item.id}/status",
+            data={
+                "status_value": ProgressStatus.REVIEW.value,
+                "return_page": 2,
+                "redirect_anchor": f"outline-item-{child_item.id}",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(outline_review_response.status_code, 303)
+
+        page_hard_response = self.client.post(
+            f"/resources/{page_resource.id}/pages/status",
+            data={
+                "page_number": 2,
+                "status_value": ProgressStatus.HARD.value,
+                "redirect_anchor": "page-progress-panel",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(page_hard_response.status_code, 303)
+
+        module_b_review_response = self.client.post(
+            f"/resources/{module_b_resource.id}/pages/status",
+            data={
+                "page_number": 1,
+                "status_value": ProgressStatus.REVIEW.value,
+                "redirect_anchor": "page-progress-panel",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(module_b_review_response.status_code, 303)
+
+        secondary_hard_response = self.client.post(
+            f"/resources/{secondary_resource.id}/pages/status",
+            data={
+                "page_number": 1,
+                "status_value": ProgressStatus.HARD.value,
+                "redirect_anchor": "page-progress-panel",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(secondary_hard_response.status_code, 303)
+
+        with SessionLocal() as session:
+            page_anchor = (
+                session.query(Anchor)
+                .filter(Anchor.resource_id == page_resource.id, Anchor.page_number == 2)
+                .one()
+            )
+            module_b_anchor = (
+                session.query(Anchor)
+                .filter(Anchor.resource_id == module_b_resource.id, Anchor.page_number == 1)
+                .one()
+            )
+            secondary_anchor = (
+                session.query(Anchor)
+                .filter(Anchor.resource_id == secondary_resource.id, Anchor.page_number == 1)
+                .one()
+            )
+
+        review_page = self.client.get("/review")
+        self.assertEqual(review_page.status_code, 200)
+        self.assertIn(f'id="review-item-outline-item-{child_item.id}"', review_page.text)
+        self.assertIn(f'id="review-item-page-{page_anchor.id}"', review_page.text)
+        self.assertIn(f'id="review-item-page-{module_b_anchor.id}"', review_page.text)
+        self.assertIn(f'id="review-item-page-{secondary_anchor.id}"', review_page.text)
+        self.assertIn(f'/resources/{outline_resource.id}?page=2#pdf-reader', review_page.text)
+        self.assertIn(f'/resources/{page_resource.id}?page=2#pdf-reader', review_page.text)
+        self.assertIn(f'/resources/{module_b_resource.id}?page=1#pdf-reader', review_page.text)
+        self.assertIn(f'/resources/{secondary_resource.id}?page=1#pdf-reader', review_page.text)
+
+        empty_filter_values_page = self.client.get("/review?course_id=&module_id=&resource_id=")
+        self.assertEqual(empty_filter_values_page.status_code, 200)
+        self.assertIn(f'id="review-item-outline-item-{child_item.id}"', empty_filter_values_page.text)
+        self.assertIn(f'id="review-item-page-{page_anchor.id}"', empty_filter_values_page.text)
+
+        course_filtered_page = self.client.get(f"/review?course_id={primary_course_id}")
+        self.assertEqual(course_filtered_page.status_code, 200)
+        self.assertIn(f'id="review-item-outline-item-{child_item.id}"', course_filtered_page.text)
+        self.assertIn(f'id="review-item-page-{page_anchor.id}"', course_filtered_page.text)
+        self.assertIn(f'id="review-item-page-{module_b_anchor.id}"', course_filtered_page.text)
+        self.assertNotIn(f'id="review-item-page-{secondary_anchor.id}"', course_filtered_page.text)
+
+        module_filtered_page = self.client.get(f"/review?module_id={primary_module_b.id}")
+        self.assertEqual(module_filtered_page.status_code, 200)
+        self.assertIn(f'id="review-item-page-{module_b_anchor.id}"', module_filtered_page.text)
+        self.assertNotIn(f'id="review-item-outline-item-{child_item.id}"', module_filtered_page.text)
+        self.assertNotIn(f'id="review-item-page-{page_anchor.id}"', module_filtered_page.text)
+        self.assertNotIn(f'id="review-item-page-{secondary_anchor.id}"', module_filtered_page.text)
+
+        resource_filtered_page = self.client.get(f"/review?resource_id={page_resource.id}")
+        self.assertEqual(resource_filtered_page.status_code, 200)
+        self.assertIn(f'id="review-item-page-{page_anchor.id}"', resource_filtered_page.text)
+        self.assertNotIn(f'id="review-item-outline-item-{child_item.id}"', resource_filtered_page.text)
+        self.assertNotIn(f'id="review-item-page-{module_b_anchor.id}"', resource_filtered_page.text)
+        self.assertNotIn(f'id="review-item-page-{secondary_anchor.id}"', resource_filtered_page.text)
+
+        source_viewer_response = self.client.get(f"/resources/{outline_resource.id}?page=2")
+        self.assertEqual(source_viewer_response.status_code, 200)
+        self.assertIn('data-initial-page="2"', source_viewer_response.text)
+        self.assertIn(f'id="outline-item-{child_item.id}"', source_viewer_response.text)
+
 
 def _build_pdf_bytes(*, with_outline: bool, outline_titles: list[str] | None = None) -> bytes:
     writer = PdfWriter()

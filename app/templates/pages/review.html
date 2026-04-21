@@ -1,0 +1,127 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+  <section class="page-stack">
+    <div class="page-header">
+      <div>
+        <span class="eyebrow">Review Queue</span>
+        <h2>Review and hard items are collected here as a status-based queue.</h2>
+        <p>Use filters to narrow the queue by course, module, or resource. The source jump opens the exact PDF page when it is available.</p>
+      </div>
+
+      <div class="page-header__actions">
+        <span class="pill">{{ queue_stats.total }} visible</span>
+        <span class="pill">{{ total_queue_stats.total }} total</span>
+        <span class="status-badge status-badge--hard">{{ queue_stats.hard }} hard</span>
+        <span class="status-badge status-badge--review">{{ queue_stats.review }} review</span>
+      </div>
+    </div>
+
+    <section class="panel panel--tight">
+      <div class="panel__header">
+        <div>
+          <h3>Filters</h3>
+          <p>The queue is driven only by current statuses. Spaced repetition by dates is intentionally not enabled yet.</p>
+        </div>
+      </div>
+
+      <form class="form-grid review-filters" method="get" action="{{ request.url_for('review_index') }}">
+        <label class="field">
+          <span>Course</span>
+          <select class="input" name="course_id">
+            <option value="">All courses</option>
+            {% for option in course_options %}
+              <option value="{{ option.id }}"{% if selected_filters.course_id == option.id %} selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Module</span>
+          <select class="input" name="module_id">
+            <option value="">All modules</option>
+            {% for option in module_options %}
+              <option value="{{ option.id }}"{% if selected_filters.module_id == option.id %} selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field field--full">
+          <span>Resource</span>
+          <select class="input" name="resource_id">
+            <option value="">All resources</option>
+            {% for option in resource_options %}
+              <option value="{{ option.id }}"{% if selected_filters.resource_id == option.id %} selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <div class="form-actions field--full">
+          <button class="button" type="submit">Apply filters</button>
+          <a class="button button--secondary" href="{{ request.url_for('review_index') }}">Reset</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="stack">
+      {% for item in review_queue %}
+        <article
+          class="panel panel--tight review-card"
+          id="{{ item.dom_id }}"
+          data-review-item="{{ item.queue_key }}"
+          data-review-status="{{ item.status.value }}"
+          data-review-course-id="{{ item.course_id }}"
+          data-review-module-id="{{ item.module_id }}"
+          data-review-resource-id="{{ item.resource_id }}"
+        >
+          <div class="review-card__header">
+            <div>
+              <div class="review-card__eyebrows">
+                <span class="eyebrow">{{ item.unit_kind_label }}</span>
+                <span class="pill">{{ item.course_title }}</span>
+                <span class="pill">{{ item.module_title }}</span>
+              </div>
+              <h3>{{ item.unit_title }}</h3>
+              <p>{{ item.resource_title }}</p>
+            </div>
+            <span class="status-badge status-badge--{{ item.status.value }}">{{ item.status_label }}</span>
+          </div>
+
+          <div class="review-card__meta">
+            <span>Source: {{ item.source_label }}</span>
+            {% if item.last_interacted_label %}
+              <span>Updated {{ item.last_interacted_label }}</span>
+            {% endif %}
+          </div>
+
+          <div class="review-card__actions">
+            {% if item.can_open_source %}
+              <a
+                class="button"
+                href="{{ request.url_for('resource_detail', resource_id=item.resource_id) }}?page={{ item.source_page }}{% if item.source_anchor %}#{{ item.source_anchor }}{% endif %}"
+                data-review-source-link
+              >
+                Open source
+              </a>
+            {% else %}
+              <span class="pill">Source jump is not available for this resource type yet.</span>
+            {% endif %}
+            <a class="button button--secondary" href="{{ request.url_for('course_detail', course_id=item.course_id) }}#module-{{ item.module_id }}">
+              Open module
+            </a>
+          </div>
+        </article>
+      {% else %}
+        <div class="empty-state">
+          No review items match the current filters.
+        </div>
+      {% endfor %}
+    </section>
+  </section>
+{% endblock %}
