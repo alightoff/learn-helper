@@ -1,26 +1,88 @@
 {% extends "layouts/base.html" %}
 
+{% macro render_progress_summary(summary, title, summary_id) -%}
+  <section
+    class="progress-summary"
+    id="{{ summary_id }}"
+    data-progress-percent="{{ summary.progress_percent }}"
+    data-progress-status="{{ summary.status.value }}"
+  >
+    <div class="progress-summary__header">
+      <div>
+        <h4>{{ title }}</h4>
+        {% if summary.is_empty %}
+          <p>No study units tracked yet.</p>
+        {% else %}
+          <p>{{ summary.done_units }} of {{ summary.total_units }} units done.</p>
+        {% endif %}
+      </div>
+      <span class="status-badge status-badge--{{ summary.status.value }}">{{ summary.status_label }}</span>
+    </div>
+
+    <div class="progress-summary__meta">
+      <span>{{ summary.progress_percent }}%</span>
+      <span>{{ summary.total_units }} unit{% if summary.total_units != 1 %}s{% endif %}</span>
+      {% if summary.review_units %}
+        <span>{{ summary.review_units }} review</span>
+      {% endif %}
+      {% if summary.hard_units %}
+        <span>{{ summary.hard_units }} hard</span>
+      {% endif %}
+    </div>
+  </section>
+{%- endmacro %}
+
 {% macro render_outline(nodes, resource_url) -%}
   {% if nodes %}
     <ol class="viewer-outline">
       {% for node in nodes %}
-        <li class="viewer-outline__item">
-          {% if node.item.page_number %}
-            <a
-              class="viewer-outline__link"
-              href="{{ resource_url }}?page={{ node.item.page_number }}#pdf-reader"
-              data-outline-page="{{ node.item.page_number }}"
-              data-outline-id="{{ node.item.id }}"
+        {% set item_progress = resource_progress.outline_statuses.get(node.item.id) %}
+        <li class="viewer-outline__item" id="outline-item-{{ node.item.id }}">
+          <div
+            class="viewer-outline__card"
+            data-outline-status="{{ item_progress.status.value }}"
+            data-outline-id="{{ node.item.id }}"
+          >
+            <div class="viewer-outline__row">
+              {% if node.item.page_number %}
+                <a
+                  class="viewer-outline__link"
+                  href="{{ resource_url }}?page={{ node.item.page_number }}#pdf-reader"
+                  data-outline-page="{{ node.item.page_number }}"
+                  data-outline-id="{{ node.item.id }}"
+                >
+                  <span class="viewer-outline__title">{{ node.item.title }}</span>
+                  <span class="viewer-outline__meta">p. {{ node.item.page_number }}</span>
+                </a>
+              {% else %}
+                <span class="viewer-outline__link viewer-outline__link--disabled">
+                  <span class="viewer-outline__title">{{ node.item.title }}</span>
+                  <span class="viewer-outline__meta">No page target</span>
+                </span>
+              {% endif %}
+              <span class="status-badge status-badge--{{ item_progress.status.value }}">{{ item_progress.status_label }}</span>
+            </div>
+
+            <form
+              class="status-form"
+              method="post"
+              action="{{ request.url_for('update_outline_item_status_action', resource_id=resource.id, outline_item_id=node.item.id) }}"
             >
-              <span class="viewer-outline__title">{{ node.item.title }}</span>
-              <span class="viewer-outline__meta">p. {{ node.item.page_number }}</span>
-            </a>
-          {% else %}
-            <span class="viewer-outline__link viewer-outline__link--disabled">
-              <span class="viewer-outline__title">{{ node.item.title }}</span>
-              <span class="viewer-outline__meta">No page target</span>
-            </span>
-          {% endif %}
+              <input type="hidden" name="return_page" value="{{ initial_page }}" />
+              <input type="hidden" name="redirect_anchor" value="outline-item-{{ node.item.id }}" />
+              <label class="field">
+                <span>Status</span>
+                <select class="input input--compact" name="status_value">
+                  {% for option in progress_status_options %}
+                    <option value="{{ option.value }}"{% if option.value == item_progress.status.value %} selected{% endif %}>
+                      {{ option.label }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </label>
+              <button class="button button--secondary button--small" type="submit">Save</button>
+            </form>
+          </div>
           {{ render_outline(node.children, resource_url) }}
         </li>
       {% endfor %}
@@ -45,14 +107,39 @@
       </div>
 
       <div class="page-header__actions">
-        <span class="pill">Status: {{ resource.status.value|replace('_', ' ')|title }}</span>
+        <span class="status-badge status-badge--{{ resource_progress.summary.status.value }}">
+          {{ resource_progress.summary.status_label }}
+        </span>
+        <span class="pill">{{ resource_progress.summary.progress_percent }}% progress</span>
         <span class="pill">{{ resource.page_count or "?" }} pages</span>
         <a class="button button--secondary" href="{{ course_url }}">Back to course</a>
       </div>
     </div>
 
+    {% if notice %}
+      <div class="banner">{{ notice }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="banner banner--error">{{ error }}</div>
+    {% endif %}
+
     <section class="resource-viewer-layout">
       <aside class="resource-sidebar">
+        <section class="panel panel--tight">
+          <div class="panel__header">
+            <div>
+              <h3>Progress overview</h3>
+              <p>Study progress is tracked on outline items when available, otherwise by page.</p>
+            </div>
+          </div>
+
+          <div class="stack">
+            {{ render_progress_summary(resource_progress.summary, "Resource", "resource-study-progress") }}
+            {{ render_progress_summary(module_progress, "Module", "module-study-progress") }}
+            {{ render_progress_summary(course_progress, "Course", "course-study-progress") }}
+          </div>
+        </section>
+
         <section class="panel panel--tight resource-outline-panel">
           <div class="panel__header">
             <div>
@@ -67,7 +154,7 @@
               {{ render_outline(outline_tree, request.url_for('resource_detail', resource_id=resource.id)) }}
             {% else %}
               <div class="empty-state empty-state--inline">
-                No outline extracted yet. The reader still works and the structure can be added manually later.
+                No outline extracted yet. The reader still works and progress falls back to the current page.
               </div>
             {% endif %}
           </div>
@@ -77,13 +164,53 @@
           <div class="panel__header">
             <div>
               <h3>Resource status</h3>
-              <p>Basic metadata only for now. Study progress and page-linked notes will be attached here later.</p>
+              <p>Study state now lives here. Content metadata stays available below.</p>
             </div>
           </div>
 
+          {% if resource_progress.mode == "page" %}
+            <section
+              class="page-status-panel"
+              id="page-progress-panel"
+              data-current-page-status="{{ current_page_status.status.value }}"
+            >
+              <div class="page-status-panel__header">
+                <div>
+                  <h4>Current page</h4>
+                  <p>Use page-level fallback when the PDF has no extracted outline.</p>
+                </div>
+                <span class="status-badge status-badge--{{ current_page_status.status.value }}">{{ current_page_status.status_label }}</span>
+              </div>
+
+              <form
+                class="status-form"
+                method="post"
+                action="{{ request.url_for('update_page_status_action', resource_id=resource.id) }}"
+              >
+                <input type="hidden" name="page_number" value="{{ initial_page }}" />
+                <input type="hidden" name="redirect_anchor" value="page-progress-panel" />
+                <label class="field">
+                  <span>Page {{ initial_page }} status</span>
+                  <select class="input input--compact" name="status_value">
+                    {% for option in progress_status_options %}
+                      <option value="{{ option.value }}"{% if option.value == current_page_status.status.value %} selected{% endif %}>
+                        {{ option.label }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </label>
+                <button class="button button--secondary button--small" type="submit">Save</button>
+              </form>
+            </section>
+          {% endif %}
+
           <dl class="meta-list">
             <div class="meta-list__row">
-              <dt>State</dt>
+              <dt>Tracked by</dt>
+              <dd>{% if resource_progress.mode == "outline_item" %}Outline items{% else %}Pages{% endif %}</dd>
+            </div>
+            <div class="meta-list__row">
+              <dt>Content state</dt>
               <dd>{{ resource.status.value|replace('_', ' ')|title }}</dd>
             </div>
             <div class="meta-list__row">

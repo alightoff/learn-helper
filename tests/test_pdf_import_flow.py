@@ -7,12 +7,17 @@ import shutil
 import unittest
 from urllib.parse import urlparse
 
-from alembic import command
-from alembic.config import Config
+BASE_DIR = Path(__file__).resolve().parents[1]
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 
-BASE_DIR = Path(__file__).resolve().parents[1]
+try:
+    from alembic import command
+    from alembic.config import Config
+except ImportError:
+    command = None
+    Config = None
+
 RUNTIME_DIR = BASE_DIR / "data" / "test-runtime"
 
 if RUNTIME_DIR.exists():
@@ -25,7 +30,8 @@ from app.config import get_settings
 
 get_settings.cache_clear()
 
-from app.db.models import Module, Resource, ResourceOutlineItem
+from app.db.enums import ProgressStatus
+from app.db.models import Anchor, Base, Module, ProgressRecord, Resource, ResourceOutlineItem
 from app.db.session import SessionLocal, engine
 from app.main import create_app
 
@@ -34,8 +40,11 @@ class PdfImportFlowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-        alembic_config = Config(str(BASE_DIR / "alembic.ini"))
-        command.upgrade(alembic_config, "head")
+        if command is not None and Config is not None:
+            alembic_config = Config(str(BASE_DIR / "alembic.ini"))
+            command.upgrade(alembic_config, "head")
+        else:
+            Base.metadata.create_all(bind=engine)
         cls.client = TestClient(create_app())
 
     @classmethod
@@ -202,6 +211,175 @@ class PdfImportFlowTest(unittest.TestCase):
             self.assertEqual(plain_file_response.status_code, 200)
             self.assertGreater(len(outlined_file_response.content), 0)
             self.assertGreater(len(plain_file_response.content), 0)
+
+    def test_progress_status_flow_for_outline_and_page_fallback(self) -> None:
+        create_course_response = self.client.post(
+            "/courses",
+            data={
+                "title": "Applied Cryptography",
+                "topic": "Protocols",
+                "description": "Course used for progress aggregation checks.",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(create_course_response.status_code, 303)
+        course_id = int(urlparse(create_course_response.headers["location"]).path.rstrip("/").split("/")[-1])
+
+        create_module_response = self.client.post(
+            f"/courses/{course_id}/modules",
+            data={
+                "title": "Week 1",
+                "description": "Progress target module.",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(create_module_response.status_code, 303)
+
+        with SessionLocal() as session:
+            module = session.query(Module).filter(Module.course_id == course_id).one()
+            module_id = module.id
+
+        outline_import_response = self.client.post(
+            f"/modules/{module_id}/resources/pdf",
+            data={
+                "title": "Outline Progress PDF",
+                "description": "Needs outline-item progress.",
+            },
+            files={
+                "file": (
+                    "outline-progress.pdf",
+                    _build_pdf_bytes(with_outline=True),
+                    "application/pdf",
+                )
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(outline_import_response.status_code, 303)
+
+        plain_import_response = self.client.post(
+            f"/modules/{module_id}/resources/pdf",
+            data={
+                "title": "Page Progress PDF",
+                "description": "Needs page fallback progress.",
+            },
+            files={
+                "file": (
+                    "page-progress.pdf",
+                    _build_pdf_bytes(with_outline=False),
+                    "application/pdf",
+                )
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(plain_import_response.status_code, 303)
+
+        with SessionLocal() as session:
+            outlined_resource = session.query(Resource).filter(Resource.title == "Outline Progress PDF").one()
+            plain_resource = session.query(Resource).filter(Resource.title == "Page Progress PDF").one()
+            outlined_items = (
+                session.query(ResourceOutlineItem)
+                .filter(ResourceOutlineItem.resource_id == outlined_resource.id)
+                .order_by(ResourceOutlineItem.id)
+                .all()
+            )
+            root_item = next(item for item in outlined_items if item.parent_id is None)
+            child_item = next(item for item in outlined_items if item.parent_id == root_item.id)
+
+        root_in_progress_response = self.client.post(
+            f"/resources/{outlined_resource.id}/outline-items/{root_item.id}/status",
+            data={
+                "status_value": ProgressStatus.IN_PROGRESS.value,
+                "return_page": 1,
+                "redirect_anchor": f"outline-item-{root_item.id}",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(root_in_progress_response.status_code, 303)
+
+        root_done_response = self.client.post(
+            f"/resources/{outlined_resource.id}/outline-items/{root_item.id}/status",
+            data={
+                "status_value": ProgressStatus.DONE.value,
+                "return_page": 1,
+                "redirect_anchor": f"outline-item-{root_item.id}",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(root_done_response.status_code, 303)
+
+        child_review_response = self.client.post(
+            f"/resources/{outlined_resource.id}/outline-items/{child_item.id}/status",
+            data={
+                "status_value": ProgressStatus.REVIEW.value,
+                "return_page": 2,
+                "redirect_anchor": f"outline-item-{child_item.id}",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(child_review_response.status_code, 303)
+
+        page_hard_response = self.client.post(
+            f"/resources/{plain_resource.id}/pages/status",
+            data={
+                "page_number": 2,
+                "status_value": ProgressStatus.HARD.value,
+                "redirect_anchor": "page-progress-panel",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(page_hard_response.status_code, 303)
+
+        with SessionLocal() as session:
+            refreshed_root = session.get(ResourceOutlineItem, root_item.id)
+            refreshed_child = session.get(ResourceOutlineItem, child_item.id)
+            root_records = (
+                session.query(ProgressRecord)
+                .filter(ProgressRecord.outline_item_id == root_item.id)
+                .all()
+            )
+            page_anchor = (
+                session.query(Anchor)
+                .filter(
+                    Anchor.resource_id == plain_resource.id,
+                    Anchor.page_number == 2,
+                )
+                .one()
+            )
+            page_record = (
+                session.query(ProgressRecord)
+                .filter(ProgressRecord.anchor_id == page_anchor.id)
+                .one()
+            )
+
+            self.assertEqual(refreshed_root.status, ProgressStatus.DONE)
+            self.assertEqual(refreshed_child.status, ProgressStatus.REVIEW)
+            self.assertEqual(len(root_records), 1)
+            self.assertEqual(root_records[0].status, ProgressStatus.DONE)
+            self.assertEqual(page_record.status, ProgressStatus.HARD)
+
+        course_page = self.client.get(f"/courses/{course_id}")
+        self.assertEqual(course_page.status_code, 200)
+        self.assertIn('id="course-progress-summary"', course_page.text)
+        self.assertIn('data-progress-percent="50"', course_page.text)
+        self.assertIn('data-progress-status="hard"', course_page.text)
+        self.assertIn(f'id="resource-progress-{outlined_resource.id}"', course_page.text)
+        self.assertIn('data-progress-percent="88"', course_page.text)
+        self.assertIn('data-progress-status="review"', course_page.text)
+        self.assertIn(f'id="resource-progress-{plain_resource.id}"', course_page.text)
+        self.assertIn('data-progress-percent="13"', course_page.text)
+        self.assertIn('data-progress-status="hard"', course_page.text)
+
+        outlined_viewer_response = self.client.get(f"/resources/{outlined_resource.id}?page=2")
+        self.assertEqual(outlined_viewer_response.status_code, 200)
+        self.assertIn('id="resource-study-progress"', outlined_viewer_response.text)
+        self.assertIn('data-progress-percent="88"', outlined_viewer_response.text)
+        self.assertIn('data-outline-status="done"', outlined_viewer_response.text)
+        self.assertIn('data-outline-status="review"', outlined_viewer_response.text)
+
+        plain_viewer_response = self.client.get(f"/resources/{plain_resource.id}?page=2")
+        self.assertEqual(plain_viewer_response.status_code, 200)
+        self.assertIn('id="page-progress-panel"', plain_viewer_response.text)
+        self.assertIn('data-current-page-status="hard"', plain_viewer_response.text)
 
 
 def _build_pdf_bytes(*, with_outline: bool, outline_titles: list[str] | None = None) -> bytes:

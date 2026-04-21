@@ -1,12 +1,35 @@
 {% extends "layouts/base.html" %}
 
+{% macro render_progress_summary(summary, summary_id) -%}
+  <div
+    class="progress-summary progress-summary--compact"
+    id="{{ summary_id }}"
+    data-progress-percent="{{ summary.progress_percent }}"
+    data-progress-status="{{ summary.status.value }}"
+  >
+    <div class="progress-summary__meta">
+      <span>{{ summary.progress_percent }}%</span>
+      <span>{{ summary.done_units }} / {{ summary.total_units }} done</span>
+      {% if summary.review_units %}
+        <span>{{ summary.review_units }} review</span>
+      {% endif %}
+      {% if summary.hard_units %}
+        <span>{{ summary.hard_units }} hard</span>
+      {% endif %}
+    </div>
+    <div class="progress-meter" aria-hidden="true">
+      <span class="progress-meter__value" style="width: {{ summary.progress_percent }}%"></span>
+    </div>
+  </div>
+{%- endmacro %}
+
 {% block content %}
   <section class="page-stack">
     <div class="page-header">
       <div>
-        <span class="eyebrow">PDF Import</span>
-        <h2>Courses, modules, and uploaded PDFs now share one flow.</h2>
-        <p>Create a course, add a module, and import a PDF into the module. Page count and outline are extracted during import, but missing outline data does not block the resource.</p>
+        <span class="eyebrow">Learning Flow</span>
+        <h2>Courses, modules, uploaded PDFs, and study status now share one flow.</h2>
+        <p>Create a course, add a module, import a PDF, and track study status on outline items or page fallback when no outline exists.</p>
       </div>
     </div>
 
@@ -30,6 +53,10 @@
         <h3>PDF resources</h3>
         <p class="kpi">{{ stats.pdf_count }}</p>
       </article>
+      <article class="card">
+        <h3>Study units</h3>
+        <p class="kpi">{{ stats.study_unit_count }}</p>
+      </article>
     </section>
 
     <div class="grid grid--wide">
@@ -37,7 +64,7 @@
         <div class="panel__header">
           <div>
             <h3>Create course</h3>
-            <p>Start a course first. The detail page handles module creation and PDF import.</p>
+            <p>Start a course first. The detail page handles module creation, PDF import, and progress tracking.</p>
           </div>
         </div>
 
@@ -67,23 +94,26 @@
         <div class="panel__header">
           <div>
             <h3>Courses</h3>
-            <p>Recent courses stay visible here so you can jump straight back into import work.</p>
+            <p>Recent courses stay visible here so you can jump straight back into reading and progress updates.</p>
           </div>
         </div>
 
         <div class="stack">
           {% for course in courses %}
+            {% set course_progress = course_progress_summaries[course.id] %}
             <a class="course-card" href="{{ request.url_for('course_detail', course_id=course.id) }}">
               <div class="course-card__header">
                 <h4>{{ course.title }}</h4>
-                <span class="pill">{{ course.topic or "No topic" }}</span>
+                <span class="status-badge status-badge--{{ course_progress.status.value }}">{{ course_progress.status_label }}</span>
               </div>
               {% if course.description %}
                 <p>{{ course.description }}</p>
               {% endif %}
+              {{ render_progress_summary(course_progress, "dashboard-course-progress-" ~ course.id) }}
               <div class="course-meta">
                 <span>{{ course.modules|length }} module{% if course.modules|length != 1 %}s{% endif %}</span>
                 <span>{{ course.resources|length }} resource{% if course.resources|length != 1 %}s{% endif %}</span>
+                <span>{{ course_progress.total_units }} study unit{% if course_progress.total_units != 1 %}s{% endif %}</span>
               </div>
             </a>
           {% else %}

@@ -1,12 +1,49 @@
 {% extends "layouts/base.html" %}
 
-{% macro render_outline(nodes, viewer_url=None, preview_ns=None, preview_limit=0) -%}
+{% macro render_progress_summary(summary, title, summary_id) -%}
+  <section
+    class="progress-summary"
+    id="{{ summary_id }}"
+    data-progress-percent="{{ summary.progress_percent }}"
+    data-progress-status="{{ summary.status.value }}"
+  >
+    <div class="progress-summary__header">
+      <div>
+        <h4>{{ title }}</h4>
+        {% if summary.is_empty %}
+          <p>No study units tracked yet.</p>
+        {% else %}
+          <p>{{ summary.done_units }} of {{ summary.total_units }} units done.</p>
+        {% endif %}
+      </div>
+      <span class="status-badge status-badge--{{ summary.status.value }}">{{ summary.status_label }}</span>
+    </div>
+
+    <div class="progress-meter" aria-hidden="true">
+      <span class="progress-meter__value" style="width: {{ summary.progress_percent }}%"></span>
+    </div>
+
+    <div class="progress-summary__meta">
+      <span>{{ summary.progress_percent }}%</span>
+      <span>{{ summary.total_units }} unit{% if summary.total_units != 1 %}s{% endif %}</span>
+      {% if summary.review_units %}
+        <span>{{ summary.review_units }} review</span>
+      {% endif %}
+      {% if summary.hard_units %}
+        <span>{{ summary.hard_units }} hard</span>
+      {% endif %}
+    </div>
+  </section>
+{%- endmacro %}
+
+{% macro render_outline(nodes, viewer_url=None, preview_ns=None, preview_limit=0, outline_statuses=None) -%}
   {% if nodes %}
     <ol class="outline-tree">
       {% for node in nodes %}
         {% if preview_ns is not none %}
           {% set preview_ns.visible_count = preview_ns.visible_count + 1 %}
         {% endif %}
+        {% set outline_progress = outline_statuses.get(node.item.id) if outline_statuses else none %}
         <li class="outline-tree__item{% if preview_ns is not none and preview_ns.visible_count > preview_limit %} outline-tree__item--collapsed{% endif %}">
           <div class="outline-row">
             {% if viewer_url and node.item.page_number %}
@@ -20,8 +57,11 @@
                 <span class="outline-row__meta">p. {{ node.item.page_number }}</span>
               {% endif %}
             {% endif %}
+            {% if outline_progress %}
+              <span class="status-badge status-badge--{{ outline_progress.status.value }}">{{ outline_progress.status_label }}</span>
+            {% endif %}
           </div>
-          {{ render_outline(node.children, viewer_url, preview_ns, preview_limit) }}
+          {{ render_outline(node.children, viewer_url, preview_ns, preview_limit, outline_statuses) }}
         </li>
       {% endfor %}
     </ol>
@@ -43,6 +83,7 @@
       <div class="course-meta">
         <span class="pill">{{ course.topic or "Topic not set" }}</span>
         <span class="pill">{{ module_views|length }} module{% if module_views|length != 1 %}s{% endif %}</span>
+        <span class="status-badge status-badge--{{ course_progress.status.value }}">{{ course_progress.status_label }}</span>
       </div>
     </div>
 
@@ -52,6 +93,8 @@
     {% if error %}
       <div class="banner banner--error">{{ error }}</div>
     {% endif %}
+
+    {{ render_progress_summary(course_progress, "Course progress", "course-progress-summary") }}
 
     <section class="panel">
       <div class="panel__header">
@@ -95,6 +138,8 @@
             <span class="pill">Position {{ module.position + 1 }}</span>
           </div>
 
+          {{ render_progress_summary(module_view.progress, "Module progress", "module-progress-" ~ module.id) }}
+
           <form
             class="form-grid form-grid--compact"
             method="post"
@@ -125,19 +170,41 @@
             {% if module_view.resources %}
               {% for resource_view in module_view.resources %}
                 {% set resource = resource_view.resource %}
+                {% set progress = resource_view.progress %}
                 <section class="resource-card">
                   <div class="resource-card__header">
                     <div>
                       <h4>{{ resource.title }}</h4>
                       <p class="resource-card__filename">{{ resource.original_file_name }}</p>
                     </div>
-                    <span class="pill">PDF</span>
+                    <span class="status-badge status-badge--{{ progress.status.value }}">{{ progress.status_label }}</span>
+                  </div>
+
+                  <div
+                    class="progress-summary progress-summary--compact"
+                    id="resource-progress-{{ resource.id }}"
+                    data-progress-percent="{{ progress.progress_percent }}"
+                    data-progress-status="{{ progress.status.value }}"
+                  >
+                    <div class="progress-summary__meta">
+                      <span>{{ progress.progress_percent }}%</span>
+                      <span>{{ progress.done_units }} / {{ progress.total_units }} done</span>
+                      {% if progress.review_units %}
+                        <span>{{ progress.review_units }} review</span>
+                      {% endif %}
+                      {% if progress.hard_units %}
+                        <span>{{ progress.hard_units }} hard</span>
+                      {% endif %}
+                    </div>
+                    <div class="progress-meter" aria-hidden="true">
+                      <span class="progress-meter__value" style="width: {{ progress.progress_percent }}%"></span>
+                    </div>
                   </div>
 
                   <div class="resource-meta">
                     <span>{{ resource.page_count or "?" }} pages</span>
                     <span>{{ resource_view.outline_count }} outline item{% if resource_view.outline_count != 1 %}s{% endif %}</span>
-                    <span>{{ resource.status.value|replace('_', ' ')|title }}</span>
+                    <span>{% if progress.is_empty %}No units tracked{% else %}{{ progress.total_units }} study unit{% if progress.total_units != 1 %}s{% endif %}{% endif %}</span>
                   </div>
 
                   {% if resource.description %}
@@ -160,7 +227,7 @@
                             type="checkbox"
                             id="outline-toggle-{{ resource.id }}"
                           />
-                          {{ render_outline(resource_view.outline_tree, resource_view.viewer_url, outline_preview, 10) }}
+                          {{ render_outline(resource_view.outline_tree, resource_view.viewer_url, outline_preview, 10, resource_view.outline_statuses) }}
                           <label
                             class="button button--secondary outline-preview__toggle outline-preview__toggle--more"
                             for="outline-toggle-{{ resource.id }}"
@@ -176,7 +243,7 @@
                         </div>
                       {% else %}
                         <div class="outline-preview">
-                          {{ render_outline(resource_view.outline_tree, resource_view.viewer_url, outline_preview, 10) }}
+                          {{ render_outline(resource_view.outline_tree, resource_view.viewer_url, outline_preview, 10, resource_view.outline_statuses) }}
                         </div>
                       {% endif %}
                     </div>

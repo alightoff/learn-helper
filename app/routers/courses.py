@@ -10,6 +10,7 @@ from app.db.models import Course
 from app.db.session import get_db
 from app.services.courses import create_course, get_course_detail
 from app.services.modules import create_module, get_module_with_course
+from app.services.progress import build_course_progress_context
 from app.services.resources import PdfImportError, build_outline_tree, import_pdf_resource
 from app.web import templates
 
@@ -26,6 +27,7 @@ async def course_detail(
     if course is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found.")
 
+    progress_context = build_course_progress_context([course], db)
     module_views = []
     for module in sorted(course.modules, key=lambda item: (item.position, item.id)):
         resource_views = []
@@ -34,6 +36,7 @@ async def course_detail(
             key=lambda item: (item.created_at is None, item.created_at, item.id),
             reverse=True,
         ):
+            resource_progress = progress_context["resources"][resource.id]
             resource_views.append(
                 {
                     "resource": resource,
@@ -41,6 +44,8 @@ async def course_detail(
                     "outline_count": len(resource.outline_items),
                     "file_url": request.url_for("uploads", path=resource.file_path),
                     "viewer_url": request.url_for("resource_detail", resource_id=resource.id),
+                    "progress": resource_progress["summary"],
+                    "outline_statuses": resource_progress["outline_statuses"],
                 }
             )
 
@@ -48,6 +53,7 @@ async def course_detail(
             {
                 "module": module,
                 "resources": resource_views,
+                "progress": progress_context["modules"][module.id],
             }
         )
 
@@ -60,6 +66,7 @@ async def course_detail(
             "module_views": module_views,
             "notice": request.query_params.get("notice"),
             "error": request.query_params.get("error"),
+            "course_progress": progress_context["courses"][course.id],
         },
     )
 

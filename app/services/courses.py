@@ -14,7 +14,12 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 def list_courses(db: Session) -> list[Course]:
     statement = (
         select(Course)
-        .options(selectinload(Course.modules), selectinload(Course.resources))
+        .options(
+            selectinload(Course.modules)
+            .selectinload(Module.resources)
+            .selectinload(Resource.outline_items),
+            selectinload(Course.resources),
+        )
         .order_by(Course.created_at.desc(), Course.id.desc())
     )
     return list(db.scalars(statement))
