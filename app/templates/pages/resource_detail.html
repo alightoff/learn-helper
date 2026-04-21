@@ -123,6 +123,121 @@
       <div class="banner banner--error">{{ error }}</div>
     {% endif %}
 
+    {% if resource_session %}
+      <section
+        class="resource-session-widget"
+        id="study-session-widget"
+        data-resource-session-widget
+        data-session-status="{{ resource_session.status.value }}"
+        data-session-elapsed-seconds="{{ resource_session.elapsed_seconds }}"
+        {% if resource_session.active_started_at_iso %}data-session-active-started-at="{{ resource_session.active_started_at_iso }}"{% endif %}
+        data-timer-mode="{{ resource_session.timer_mode.value }}"
+        {% if resource_session.pomodoro %}
+          data-pomodoro-work-seconds="{{ resource_session.pomodoro.work_interval_seconds }}"
+          data-pomodoro-break-seconds="{{ resource_session.pomodoro.break_interval_seconds }}"
+          {% if resource_session.pomodoro.target_cycles %}data-target-cycles="{{ resource_session.pomodoro.target_cycles }}"{% endif %}
+          data-session-needs-feedback="{{ 'true' if resource_session.needs_feedback else 'false' }}"
+        {% endif %}
+      >
+        <div class="resource-session-widget__header">
+          <div>
+            <h3>Study timer</h3>
+            <p>{{ resource_session.session_type_label }}{% if resource_session.focus_label %} • {{ resource_session.focus_label }}{% endif %}</p>
+          </div>
+          <span class="status-badge status-badge--{{ resource_session.status.value }}">{{ resource_session.status_label }}</span>
+        </div>
+
+        <div class="resource-session-widget__metrics">
+          <article class="session-metric">
+            <span class="session-metric__label">Elapsed</span>
+            <strong class="session-metric__value" data-session-elapsed>{{ resource_session.elapsed_label }}</strong>
+          </article>
+          {% if resource_session.pomodoro %}
+            <article class="session-metric">
+              <span class="session-metric__label">Phase</span>
+              <strong class="session-metric__value" data-session-phase>{{ resource_session.pomodoro.phase_label }}</strong>
+            </article>
+            <article class="session-metric">
+              <span class="session-metric__label">Time left</span>
+              <strong class="session-metric__value" data-session-phase-remaining>{{ resource_session.pomodoro.phase_remaining_label }}</strong>
+            </article>
+            <article class="session-metric">
+              <span class="session-metric__label">Cycle</span>
+              <strong class="session-metric__value" data-session-cycle>{{ resource_session.pomodoro.cycle_label }}</strong>
+            </article>
+            <article class="session-metric">
+              <span class="session-metric__label">Plan</span>
+              <strong class="session-metric__value" data-session-target-progress>{{ resource_session.pomodoro.target_progress_label }}</strong>
+            </article>
+          {% endif %}
+        </div>
+
+        {% if resource_session.needs_feedback %}
+          <div class="banner resource-session-widget__banner">
+            Cycle plan is finished. Rate the result to complete the session.
+          </div>
+        {% endif %}
+
+        <div class="form-actions">
+          {% if resource_session.can_pause %}
+            <form method="post" action="{{ request.url_for('pause_study_session_action', session_id=resource_session.id) }}" data-session-return-form>
+              <input type="hidden" name="return_to_value" value="{{ request.url.path }}?page={{ initial_page }}#study-session-widget" data-session-return-to />
+              <button class="button button--secondary" type="submit">Pause</button>
+            </form>
+          {% endif %}
+          {% if resource_session.can_resume %}
+            <form method="post" action="{{ request.url_for('resume_study_session_action', session_id=resource_session.id) }}" data-session-return-form>
+              <input type="hidden" name="return_to_value" value="{{ request.url.path }}?page={{ initial_page }}#study-session-widget" data-session-return-to />
+              <button class="button button--secondary" type="submit">Resume</button>
+            </form>
+          {% endif %}
+          {% if resource_session.needs_feedback %}
+            <button class="button" type="button" data-open-session-feedback>Finish and rate</button>
+          {% else %}
+            <form method="post" action="{{ request.url_for('stop_study_session_action', session_id=resource_session.id) }}" data-session-return-form>
+              <input type="hidden" name="return_to_value" value="{{ request.url.path }}?page={{ initial_page }}#study-session-widget" data-session-return-to />
+              <button class="button" type="submit">Stop and save</button>
+            </form>
+          {% endif %}
+        </div>
+
+        <dialog class="session-feedback-dialog" data-session-feedback-dialog>
+          <div class="session-feedback-dialog__content">
+            <div>
+              <h3>How did this session go?</h3>
+              <p>Choose a result for the topic you studied. The session will be saved and the selected progress status will be applied.</p>
+            </div>
+
+            <form method="post" action="{{ request.url_for('complete_study_session_action', session_id=resource_session.id) }}" data-session-return-form>
+              <input type="hidden" name="return_to_value" value="{{ request.url.path }}?page={{ initial_page }}#study-session-widget" data-session-return-to />
+              <input type="hidden" name="page_number_value" value="{{ initial_page }}" data-session-current-page />
+              <div class="session-feedback-dialog__actions">
+                {% for option in session_feedback_options %}
+                  <button
+                    class="button{% if option.value != 'done' %} button--secondary{% endif %}"
+                    type="submit"
+                    name="feedback_status_value"
+                    value="{{ option.value }}"
+                  >
+                    {{ option.label }}
+                  </button>
+                {% endfor %}
+              </div>
+            </form>
+
+            <form method="post" action="{{ request.url_for('complete_study_session_action', session_id=resource_session.id) }}" data-session-return-form>
+              <input type="hidden" name="return_to_value" value="{{ request.url.path }}?page={{ initial_page }}#study-session-widget" data-session-return-to />
+              <input type="hidden" name="page_number_value" value="{{ initial_page }}" data-session-current-page />
+              <div class="form-actions">
+                <button class="button button--secondary" type="submit">Save without status</button>
+                <button class="button button--secondary" type="button" data-close-session-feedback>Keep open</button>
+              </div>
+            </form>
+          </div>
+        </dialog>
+      </section>
+    {% endif %}
+
     <section class="resource-viewer-layout">
       <aside class="resource-sidebar">
         <section class="panel panel--tight">
@@ -290,4 +405,5 @@
 {% block scripts %}
   {{ super() }}
   <script type="module" src="{{ request.url_for('static', path='js/pdf_resource_viewer.js') }}"></script>
+  <script type="module" src="{{ request.url_for('static', path='js/resource_study_session.js') }}"></script>
 {% endblock %}

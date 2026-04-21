@@ -39,7 +39,7 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
+    with connectable.begin() as connection:
         if settings.database_url.startswith("sqlite"):
             connection.execute(text("PRAGMA foreign_keys=ON"))
         context.configure(connection=connection, target_metadata=target_metadata)

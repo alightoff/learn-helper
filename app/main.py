@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.routers.courses import router as courses_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.resources import router as resources_router
+from app.routers.sessions import router as sessions_router
 
 
 def create_app() -> FastAPI:
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router)
     app.include_router(courses_router)
     app.include_router(resources_router)
+    app.include_router(sessions_router)
     app.state.settings = settings
 
     return app

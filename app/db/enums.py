@@ -61,3 +61,9 @@ class SessionType(str, Enum):
 class TimerMode(str, Enum):
     FREE = "free"
     POMODORO = "pomodoro"
+
+
+class StudySessionStatus(str, Enum):
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"

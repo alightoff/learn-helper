@@ -20,6 +20,7 @@ from app.services.progress import (
     set_page_status,
 )
 from app.services.resources import build_outline_tree, get_resource_detail
+from app.services.sessions import build_session_view, get_active_study_session
 from app.web import templates
 
 router = APIRouter()
@@ -47,6 +48,15 @@ async def resource_detail(
     progress_context = build_course_progress_context([course], db)
     resource_progress = progress_context["resources"][resource.id]
     current_page_status = resource_progress["page_statuses"].get(initial_page, build_default_page_status(initial_page))
+    active_study_session = get_active_study_session(db)
+    resource_session = None
+    if active_study_session is not None and active_study_session.resource_id == resource.id:
+        resource_session = build_session_view(active_study_session)
+    session_feedback_options = [
+        option
+        for option in PROGRESS_STATUS_OPTIONS
+        if option["value"] in ("done", "review", "hard", "in_progress")
+    ]
 
     return templates.TemplateResponse(
         request,
@@ -65,6 +75,8 @@ async def resource_detail(
             "resource_progress": resource_progress,
             "current_page_status": current_page_status,
             "progress_status_options": PROGRESS_STATUS_OPTIONS,
+            "resource_session": resource_session,
+            "session_feedback_options": session_feedback_options,
             "notice": request.query_params.get("notice"),
             "error": request.query_params.get("error"),
         },

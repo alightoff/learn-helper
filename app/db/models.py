@@ -15,6 +15,7 @@ from app.db.enums import (
     ProgressStatus,
     ResourceType,
     SessionType,
+    StudySessionStatus,
     TimerMode,
 )
 from app.db.mixins import CreatedAtMixin, PrimaryKeyMixin, TimestampMixin
@@ -233,6 +234,7 @@ class ResourceOutlineItem(PrimaryKeyMixin, Base):
     )
     anchors: Mapped[list["Anchor"]] = relationship(back_populates="outline_item")
     progress_records: Mapped[list["ProgressRecord"]] = relationship(back_populates="outline_item")
+    study_sessions: Mapped[list["StudySession"]] = relationship(back_populates="outline_item")
     attachments: Mapped[list["Attachment"]] = relationship(back_populates="outline_item")
 
 
@@ -380,6 +382,7 @@ class StudySession(PrimaryKeyMixin, Base):
             name="break_interval_non_negative",
         ),
         CheckConstraint("cycles_completed IS NULL OR cycles_completed >= 0", name="cycles_non_negative"),
+        CheckConstraint("target_cycles IS NULL OR target_cycles > 0", name="target_cycles_positive"),
         Index("ix_study_sessions_started_at_session_type", "started_at", "session_type"),
     )
 
@@ -387,6 +390,11 @@ class StudySession(PrimaryKeyMixin, Base):
     module_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"), nullable=True, index=True)
     resource_id: Mapped[int | None] = mapped_column(
         ForeignKey("resources.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    outline_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("resource_outline_items.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -401,17 +409,26 @@ class StudySession(PrimaryKeyMixin, Base):
         default=TimerMode.FREE,
         index=True,
     )
+    status: Mapped[StudySessionStatus] = mapped_column(
+        enum_type(StudySessionStatus),
+        nullable=False,
+        default=StudySessionStatus.COMPLETED,
+        index=True,
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    active_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     work_interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     break_interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cycles_completed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    target_cycles: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     course: Mapped[Course | None] = relationship(back_populates="study_sessions")
     module: Mapped[Module | None] = relationship(back_populates="study_sessions")
     resource: Mapped[Resource | None] = relationship(back_populates="study_sessions")
+    outline_item: Mapped[ResourceOutlineItem | None] = relationship(back_populates="study_sessions")
 
 
 class Attachment(PrimaryKeyMixin, CreatedAtMixin, Base):

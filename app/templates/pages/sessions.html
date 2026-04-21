@@ -1,0 +1,293 @@
+{% extends "layouts/base.html" %}
+
+{% macro render_daily_stats(rows) -%}
+  <div class="stack">
+    {% for row in rows %}
+      <article class="session-stat-card">
+        <div class="session-stat-card__header">
+          <h4>{{ row.date_label }}</h4>
+          <span class="pill">{{ row.session_count }} session{% if row.session_count != 1 %}s{% endif %}</span>
+        </div>
+        <p class="kpi kpi--small">{{ row.total_label }}</p>
+      </article>
+    {% endfor %}
+  </div>
+{%- endmacro %}
+
+{% block content %}
+  <section class="page-stack">
+    <div class="page-header">
+      <div>
+        <span class="eyebrow">Study Sessions</span>
+        <h2>Track focused work with free timer or pomodoro.</h2>
+        <p>Start one timer for a whole resource or pin it to a specific outline item. The server stores every state transition so pause and resume stay reliable.</p>
+      </div>
+    </div>
+
+    {% if notice %}
+      <div class="banner">{{ notice }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="banner banner--error">{{ error }}</div>
+    {% endif %}
+
+    <div class="grid grid--wide">
+      <section class="panel session-panel">
+        <div class="panel__header">
+          <div>
+            <h3>Active timer</h3>
+            <p>Start one study session and manage it here.</p>
+          </div>
+        </div>
+
+        {% if active_session %}
+          <article
+            class="active-session"
+            data-session-timer
+            data-session-status="{{ active_session.status.value }}"
+            data-session-elapsed-seconds="{{ active_session.elapsed_seconds }}"
+            {% if active_session.active_started_at_iso %}data-session-active-started-at="{{ active_session.active_started_at_iso }}"{% endif %}
+            data-timer-mode="{{ active_session.timer_mode.value }}"
+            {% if active_session.pomodoro %}
+              data-pomodoro-work-seconds="{{ active_session.pomodoro.work_interval_seconds }}"
+              data-pomodoro-break-seconds="{{ active_session.pomodoro.break_interval_seconds }}"
+              {% if active_session.pomodoro.target_cycles %}data-target-cycles="{{ active_session.pomodoro.target_cycles }}"{% endif %}
+            {% endif %}
+          >
+            <div class="active-session__header">
+              <div>
+                <h4>{{ active_session.session_type_label }}</h4>
+                <p>{{ active_session.course_title }}</p>
+                {% if active_session.focus_label %}
+                  <p class="session-focus">{{ active_session.focus_label }}</p>
+                {% endif %}
+              </div>
+              <span class="status-badge status-badge--{{ active_session.status.value }}">{{ active_session.status_label }}</span>
+            </div>
+
+            <div class="active-session__metrics">
+              <article class="session-metric">
+                <span class="session-metric__label">Elapsed</span>
+                <strong class="session-metric__value" data-session-elapsed>{{ active_session.elapsed_label }}</strong>
+              </article>
+              <article class="session-metric">
+                <span class="session-metric__label">Mode</span>
+                <strong class="session-metric__value">{{ active_session.timer_mode_label }}</strong>
+              </article>
+              {% if active_session.pomodoro %}
+                <article class="session-metric">
+                  <span class="session-metric__label">Phase</span>
+                  <strong class="session-metric__value" data-session-phase>{{ active_session.pomodoro.phase_label }}</strong>
+                </article>
+                <article class="session-metric">
+                  <span class="session-metric__label">Phase left</span>
+                  <strong class="session-metric__value" data-session-phase-remaining>{{ active_session.pomodoro.phase_remaining_label }}</strong>
+                </article>
+                <article class="session-metric">
+                  <span class="session-metric__label">Cycle</span>
+                  <strong class="session-metric__value" data-session-cycle>{{ active_session.pomodoro.cycle_label }}</strong>
+                </article>
+                <article class="session-metric">
+                  <span class="session-metric__label">Completed cycles</span>
+                  <strong class="session-metric__value" data-session-completed-cycles>{{ active_session.pomodoro.completed_cycles }}</strong>
+                </article>
+                {% if active_session.pomodoro.target_cycles %}
+                  <article class="session-metric">
+                    <span class="session-metric__label">Target cycles</span>
+                    <strong class="session-metric__value">{{ active_session.pomodoro.target_cycles_label }}</strong>
+                  </article>
+                  <article class="session-metric">
+                    <span class="session-metric__label">Cycle plan</span>
+                    <strong class="session-metric__value" data-session-target-progress>{{ active_session.pomodoro.target_progress_label }}</strong>
+                  </article>
+                {% endif %}
+              {% endif %}
+            </div>
+
+            <dl class="meta-list">
+              <div class="meta-list__row">
+                <dt>Started</dt>
+                <dd>{{ active_session.started_at_label }}</dd>
+              </div>
+              {% if active_session.timer_mode.value == "pomodoro" %}
+                <div class="meta-list__row">
+                  <dt>Intervals</dt>
+                  <dd>Work {{ active_session.work_interval_label }}, break {{ active_session.break_interval_label }}</dd>
+                </div>
+              {% endif %}
+            </dl>
+
+            {% if active_session.needs_feedback %}
+              <p class="active-session__helper">
+                The planned cycles are finished. Open the selected resource and rate the result, or stop the session manually here.
+              </p>
+            {% endif %}
+
+            <div class="form-actions">
+              {% if active_session.can_pause %}
+                <form method="post" action="{{ request.url_for('pause_study_session_action', session_id=active_session.id) }}">
+                  <button class="button button--secondary" type="submit">Pause</button>
+                </form>
+              {% endif %}
+              {% if active_session.can_resume %}
+                <form method="post" action="{{ request.url_for('resume_study_session_action', session_id=active_session.id) }}">
+                  <button class="button button--secondary" type="submit">Resume</button>
+                </form>
+              {% endif %}
+              <form method="post" action="{{ request.url_for('stop_study_session_action', session_id=active_session.id) }}">
+                <button class="button" type="submit">Stop and save</button>
+              </form>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state">
+            No active session. Start one below.
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="panel session-panel">
+        <div class="panel__header">
+          <div>
+            <h3>Start session</h3>
+            <p>Choose a resource, optionally pin the timer to an outline item, then set the pomodoro cycle plan.</p>
+          </div>
+        </div>
+
+        <form class="form-grid" method="post" action="{{ request.url_for('start_study_session_action') }}" data-session-start-form>
+          <label class="field">
+            <span>Session type</span>
+            <select class="input" name="session_type_value" required>
+              {% for option in session_type_options %}
+                <option value="{{ option.value }}">{{ option.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Timer mode</span>
+            <select class="input" name="timer_mode_value" data-timer-mode-select required>
+              {% for option in timer_mode_options %}
+                <option value="{{ option.value }}">{{ option.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field field--full">
+            <span>Resource</span>
+            <select class="input" name="resource_id_value" data-session-resource-select>
+              <option value="">General session</option>
+              {% for option in resource_options %}
+                <option value="{{ option.id }}">{{ option.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field field--full">
+            <span>Outline item</span>
+            <select class="input" name="outline_item_id_value" data-session-outline-select>
+              <option value="">Whole resource</option>
+              {% for group in outline_item_groups %}
+                <optgroup label="{{ group.resource_label }}">
+                  {% for option in group.options %}
+                    <option value="{{ option.id }}" data-resource-id="{{ group.resource_id }}">{{ option.label }}</option>
+                  {% endfor %}
+                </optgroup>
+              {% endfor %}
+            </select>
+          </label>
+
+          <div class="field session-form__hint">
+            <span>Focus rule</span>
+            <p>If you choose an outline item, it must belong to the selected resource. Leaving both empty starts a general session.</p>
+          </div>
+
+          <div class="field session-form__hint">
+            <span>Active session rule</span>
+            <p>{% if active_session %}Finish the current session before starting another one.{% else %}You can keep one running or paused session at a time.{% endif %}</p>
+          </div>
+
+          <label class="field field--full" data-pomodoro-field>
+            <span>Pomodoro work interval, minutes</span>
+            <input class="input" type="number" min="1" name="work_interval_minutes_value" value="25" />
+          </label>
+
+          <label class="field field--full" data-pomodoro-field>
+            <span>Pomodoro break interval, minutes</span>
+            <input class="input" type="number" min="0" name="break_interval_minutes_value" value="5" />
+          </label>
+
+          <label class="field field--full" data-pomodoro-field>
+            <span>Planned pomodoro cycles</span>
+            <input class="input" type="number" min="1" name="target_cycles_value" value="4" data-target-cycles-input />
+          </label>
+
+          <div class="form-actions field--full">
+            <button class="button" type="submit"{% if active_session %} disabled{% endif %}>Start session</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="grid grid--wide">
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>History</h3>
+            <p>Recent sessions with persisted duration, focus and cycle plan.</p>
+          </div>
+        </div>
+
+        <div class="stack">
+          {% for session in session_history %}
+            <article class="session-history-card">
+              <div class="session-history-card__header">
+                <div>
+                  <h4>{{ session.session_type_label }}</h4>
+                  <p>{{ session.course_title }}</p>
+                  {% if session.focus_label %}
+                    <p class="session-focus">{{ session.focus_label }}</p>
+                  {% endif %}
+                </div>
+                <span class="status-badge status-badge--{{ session.status.value }}">{{ session.status_label }}</span>
+              </div>
+
+              <div class="session-history-card__meta">
+                <span>{{ session.timer_mode_label }}</span>
+                <span>{{ session.elapsed_label }}</span>
+                <span>{{ session.started_at_label }}</span>
+                <span>{{ session.ended_at_label }}</span>
+                {% if session.timer_mode.value == "pomodoro" %}
+                  <span>{{ session.cycles_completed }} cycle{% if session.cycles_completed != 1 %}s{% endif %}</span>
+                  {% if session.target_cycles %}
+                    <span>Plan {{ session.cycles_completed }} / {{ session.target_cycles }}</span>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </article>
+          {% else %}
+            <div class="empty-state">
+              No study sessions yet.
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>Daily stats</h3>
+            <p>Basic totals by day for the last 7 days.</p>
+          </div>
+        </div>
+
+        {{ render_daily_stats(daily_stats) }}
+      </section>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script type="module" src="{{ request.url_for('static', path='js/session_timer.js') }}"></script>
+{% endblock %}
