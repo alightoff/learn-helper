@@ -1,0 +1,98 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+  <section class="page-stack">
+    <div class="page-header">
+      <div>
+        <span class="eyebrow">PDF Import</span>
+        <h2>Courses, modules, and uploaded PDFs now share one flow.</h2>
+        <p>Create a course, add a module, and import a PDF into the module. Page count and outline are extracted during import, but missing outline data does not block the resource.</p>
+      </div>
+    </div>
+
+    {% if notice %}
+      <div class="banner">{{ notice }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="banner banner--error">{{ error }}</div>
+    {% endif %}
+
+    <section class="kpi-grid">
+      <article class="card">
+        <h3>Courses</h3>
+        <p class="kpi">{{ stats.course_count }}</p>
+      </article>
+      <article class="card">
+        <h3>Modules</h3>
+        <p class="kpi">{{ stats.module_count }}</p>
+      </article>
+      <article class="card">
+        <h3>PDF resources</h3>
+        <p class="kpi">{{ stats.pdf_count }}</p>
+      </article>
+    </section>
+
+    <div class="grid grid--wide">
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>Create course</h3>
+            <p>Start a course first. The detail page handles module creation and PDF import.</p>
+          </div>
+        </div>
+
+        <form class="form-grid" method="post" action="{{ request.url_for('create_course_action') }}">
+          <label class="field">
+            <span>Title</span>
+            <input class="input" type="text" name="title" maxlength="255" required />
+          </label>
+
+          <label class="field">
+            <span>Topic</span>
+            <input class="input" type="text" name="topic" maxlength="255" />
+          </label>
+
+          <label class="field field--full">
+            <span>Description</span>
+            <textarea class="input input--textarea" name="description" rows="4"></textarea>
+          </label>
+
+          <div class="form-actions field--full">
+            <button class="button" type="submit">Create course</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>Courses</h3>
+            <p>Recent courses stay visible here so you can jump straight back into import work.</p>
+          </div>
+        </div>
+
+        <div class="stack">
+          {% for course in courses %}
+            <a class="course-card" href="{{ request.url_for('course_detail', course_id=course.id) }}">
+              <div class="course-card__header">
+                <h4>{{ course.title }}</h4>
+                <span class="pill">{{ course.topic or "No topic" }}</span>
+              </div>
+              {% if course.description %}
+                <p>{{ course.description }}</p>
+              {% endif %}
+              <div class="course-meta">
+                <span>{{ course.modules|length }} module{% if course.modules|length != 1 %}s{% endif %}</span>
+                <span>{{ course.resources|length }} resource{% if course.resources|length != 1 %}s{% endif %}</span>
+              </div>
+            </a>
+          {% else %}
+            <div class="empty-state">
+              No courses yet. Create the first one to start the PDF import flow.
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </section>
+{% endblock %}

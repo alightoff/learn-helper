@@ -1,0 +1,166 @@
+{% extends "layouts/base.html" %}
+
+{% macro render_outline(nodes) -%}
+  {% if nodes %}
+    <ol class="outline-tree">
+      {% for node in nodes %}
+        <li class="outline-tree__item">
+          <div class="outline-row">
+            <span class="outline-row__title">{{ node.item.title }}</span>
+            {% if node.item.page_number %}
+              <span class="outline-row__meta">p. {{ node.item.page_number }}</span>
+            {% endif %}
+          </div>
+          {{ render_outline(node.children) }}
+        </li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+{%- endmacro %}
+
+{% block content %}
+  <section class="page-stack">
+    <div class="page-header">
+      <div>
+        <span class="eyebrow">Course</span>
+        <h2>{{ course.title }}</h2>
+        {% if course.description %}
+          <p>{{ course.description }}</p>
+        {% else %}
+          <p>Use modules to group resources and keep each imported PDF tied to a specific part of the course.</p>
+        {% endif %}
+      </div>
+      <div class="course-meta">
+        <span class="pill">{{ course.topic or "Topic not set" }}</span>
+        <span class="pill">{{ module_views|length }} module{% if module_views|length != 1 %}s{% endif %}</span>
+      </div>
+    </div>
+
+    {% if notice %}
+      <div class="banner">{{ notice }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="banner banner--error">{{ error }}</div>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel__header">
+        <div>
+          <h3>Add module</h3>
+          <p>Create a module first, then import PDFs directly into it.</p>
+        </div>
+      </div>
+
+      <form class="form-grid" method="post" action="{{ request.url_for('create_module_action', course_id=course.id) }}">
+        <label class="field">
+          <span>Module title</span>
+          <input class="input" type="text" name="title" maxlength="255" required />
+        </label>
+
+        <label class="field field--full">
+          <span>Description</span>
+          <textarea class="input input--textarea" name="description" rows="3"></textarea>
+        </label>
+
+        <div class="form-actions field--full">
+          <button class="button" type="submit">Add module</button>
+          <a class="button button--secondary" href="{{ request.url_for('courses_index') }}">Back to courses</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="modules-grid">
+      {% for module_view in module_views %}
+        {% set module = module_view.module %}
+        <article class="module-card" id="module-{{ module.id }}">
+          <div class="module-card__header">
+            <div>
+              <h3>{{ module.title }}</h3>
+              {% if module.description %}
+                <p>{{ module.description }}</p>
+              {% else %}
+                <p>No description yet.</p>
+              {% endif %}
+            </div>
+            <span class="pill">Position {{ module.position + 1 }}</span>
+          </div>
+
+          <form
+            class="form-grid form-grid--compact"
+            method="post"
+            action="{{ request.url_for('upload_pdf_action', module_id=module.id) }}"
+            enctype="multipart/form-data"
+          >
+            <label class="field">
+              <span>Resource title</span>
+              <input class="input" type="text" name="title" maxlength="255" placeholder="Optional" />
+            </label>
+
+            <label class="field">
+              <span>PDF file</span>
+              <input class="input" type="file" name="file" accept=".pdf,application/pdf" required />
+            </label>
+
+            <label class="field field--full">
+              <span>Description</span>
+              <textarea class="input input--textarea" name="description" rows="2"></textarea>
+            </label>
+
+            <div class="form-actions field--full">
+              <button class="button" type="submit">Import PDF</button>
+            </div>
+          </form>
+
+          <div class="stack">
+            {% if module_view.resources %}
+              {% for resource_view in module_view.resources %}
+                {% set resource = resource_view.resource %}
+                <section class="resource-card">
+                  <div class="resource-card__header">
+                    <div>
+                      <h4>{{ resource.title }}</h4>
+                      <p class="resource-card__filename">{{ resource.original_file_name }}</p>
+                    </div>
+                    <span class="pill">PDF</span>
+                  </div>
+
+                  <div class="resource-meta">
+                    <span>{{ resource.page_count or "?" }} pages</span>
+                    <span>{{ resource_view.outline_count }} outline item{% if resource_view.outline_count != 1 %}s{% endif %}</span>
+                  </div>
+
+                  {% if resource.description %}
+                    <p class="resource-card__description">{{ resource.description }}</p>
+                  {% endif %}
+
+                  <div class="resource-actions">
+                    <a class="button button--secondary" href="{{ resource_view.file_url }}" target="_blank" rel="noreferrer">Open file</a>
+                  </div>
+
+                  {% if resource_view.outline_tree %}
+                    <div class="outline-block">
+                      <h5>Extracted outline</h5>
+                      {{ render_outline(resource_view.outline_tree) }}
+                    </div>
+                  {% else %}
+                    <div class="empty-state empty-state--inline">
+                      Outline was not found. The resource is still imported and ready for later manual structuring.
+                    </div>
+                  {% endif %}
+                </section>
+              {% endfor %}
+            {% else %}
+              <div class="empty-state empty-state--inline">
+                No resources in this module yet.
+              </div>
+            {% endif %}
+          </div>
+        </article>
+      {% else %}
+        <div class="empty-state">
+          Create the first module to unlock PDF import for this course.
+        </div>
+      {% endfor %}
+    </section>
+  </section>
+{% endblock %}
