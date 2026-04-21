@@ -1,17 +1,27 @@
 {% extends "layouts/base.html" %}
 
-{% macro render_outline(nodes) -%}
+{% macro render_outline(nodes, viewer_url=None, preview_ns=None, preview_limit=0) -%}
   {% if nodes %}
     <ol class="outline-tree">
       {% for node in nodes %}
-        <li class="outline-tree__item">
+        {% if preview_ns is not none %}
+          {% set preview_ns.visible_count = preview_ns.visible_count + 1 %}
+        {% endif %}
+        <li class="outline-tree__item{% if preview_ns is not none and preview_ns.visible_count > preview_limit %} outline-tree__item--collapsed{% endif %}">
           <div class="outline-row">
-            <span class="outline-row__title">{{ node.item.title }}</span>
-            {% if node.item.page_number %}
-              <span class="outline-row__meta">p. {{ node.item.page_number }}</span>
+            {% if viewer_url and node.item.page_number %}
+              <a class="outline-row__link" href="{{ viewer_url }}?page={{ node.item.page_number }}">
+                <span class="outline-row__title">{{ node.item.title }}</span>
+                <span class="outline-row__meta">p. {{ node.item.page_number }}</span>
+              </a>
+            {% else %}
+              <span class="outline-row__title">{{ node.item.title }}</span>
+              {% if node.item.page_number %}
+                <span class="outline-row__meta">p. {{ node.item.page_number }}</span>
+              {% endif %}
             {% endif %}
           </div>
-          {{ render_outline(node.children) }}
+          {{ render_outline(node.children, viewer_url, preview_ns, preview_limit) }}
         </li>
       {% endfor %}
     </ol>
@@ -127,6 +137,7 @@
                   <div class="resource-meta">
                     <span>{{ resource.page_count or "?" }} pages</span>
                     <span>{{ resource_view.outline_count }} outline item{% if resource_view.outline_count != 1 %}s{% endif %}</span>
+                    <span>{{ resource.status.value|replace('_', ' ')|title }}</span>
                   </div>
 
                   {% if resource.description %}
@@ -134,13 +145,40 @@
                   {% endif %}
 
                   <div class="resource-actions">
+                    <a class="button" href="{{ resource_view.viewer_url }}">Open reader</a>
                     <a class="button button--secondary" href="{{ resource_view.file_url }}" target="_blank" rel="noreferrer">Open file</a>
                   </div>
 
                   {% if resource_view.outline_tree %}
                     <div class="outline-block">
                       <h5>Extracted outline</h5>
-                      {{ render_outline(resource_view.outline_tree) }}
+                      {% set outline_preview = namespace(visible_count=0) %}
+                      {% if resource_view.outline_count > 10 %}
+                        <div class="outline-preview">
+                          <input
+                            class="outline-preview__checkbox"
+                            type="checkbox"
+                            id="outline-toggle-{{ resource.id }}"
+                          />
+                          {{ render_outline(resource_view.outline_tree, resource_view.viewer_url, outline_preview, 10) }}
+                          <label
+                            class="button button--secondary outline-preview__toggle outline-preview__toggle--more"
+                            for="outline-toggle-{{ resource.id }}"
+                          >
+                            Show more
+                          </label>
+                          <label
+                            class="button button--secondary outline-preview__toggle outline-preview__toggle--less"
+                            for="outline-toggle-{{ resource.id }}"
+                          >
+                            Show less
+                          </label>
+                        </div>
+                      {% else %}
+                        <div class="outline-preview">
+                          {{ render_outline(resource_view.outline_tree, resource_view.viewer_url, outline_preview, 10) }}
+                        </div>
+                      {% endif %}
                     </div>
                   {% else %}
                     <div class="empty-state empty-state--inline">

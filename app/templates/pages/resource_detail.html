@@ -1,0 +1,161 @@
+{% extends "layouts/base.html" %}
+
+{% macro render_outline(nodes) -%}
+  {% if nodes %}
+    <ol class="viewer-outline">
+      {% for node in nodes %}
+        <li class="viewer-outline__item">
+          <button
+            class="viewer-outline__link"
+            type="button"
+            data-outline-page="{{ node.item.page_number or '' }}"
+            data-outline-id="{{ node.item.id }}"
+            {% if not node.item.page_number %}disabled{% endif %}
+          >
+            <span class="viewer-outline__title">{{ node.item.title }}</span>
+            {% if node.item.page_number %}
+              <span class="viewer-outline__meta">p. {{ node.item.page_number }}</span>
+            {% else %}
+              <span class="viewer-outline__meta">No page target</span>
+            {% endif %}
+          </button>
+          {{ render_outline(node.children) }}
+        </li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+{%- endmacro %}
+
+{% block content %}
+  <section class="page-stack resource-page">
+    <div class="page-header page-header--compact">
+      <div>
+        <div class="page-header__eyebrow-row">
+          <span class="eyebrow">PDF Resource</span>
+          <span class="pill">{{ resource.module.title }}</span>
+        </div>
+        <h2>{{ resource.title }}</h2>
+        {% if resource.description %}
+          <p>{{ resource.description }}</p>
+        {% else %}
+          <p>Open the PDF inside the app, jump by outline, and keep page-based URLs stable for future notes and progress records.</p>
+        {% endif %}
+      </div>
+
+      <div class="page-header__actions">
+        <span class="pill">Status: {{ resource.status.value|replace('_', ' ')|title }}</span>
+        <span class="pill">{{ resource.page_count or "?" }} pages</span>
+        <a class="button button--secondary" href="{{ course_url }}">Back to course</a>
+      </div>
+    </div>
+
+    <section class="resource-viewer-layout">
+      <aside class="resource-sidebar">
+        <section class="panel panel--tight">
+          <div class="panel__header">
+            <div>
+              <h3>Outline</h3>
+              <p>Jump to a page and keep the `?page=` URL aligned with the current reading position.</p>
+            </div>
+            <span class="pill">{{ outline_count }} item{% if outline_count != 1 %}s{% endif %}</span>
+          </div>
+
+          {% if outline_tree %}
+            {{ render_outline(outline_tree) }}
+          {% else %}
+            <div class="empty-state empty-state--inline">
+              No outline extracted yet. The reader still works and the structure can be added manually later.
+            </div>
+          {% endif %}
+        </section>
+
+        <section class="panel panel--tight">
+          <div class="panel__header">
+            <div>
+              <h3>Resource status</h3>
+              <p>Basic metadata only for now. Study progress and page-linked notes will be attached here later.</p>
+            </div>
+          </div>
+
+          <dl class="meta-list">
+            <div class="meta-list__row">
+              <dt>State</dt>
+              <dd>{{ resource.status.value|replace('_', ' ')|title }}</dd>
+            </div>
+            <div class="meta-list__row">
+              <dt>Type</dt>
+              <dd>{{ resource.resource_type.value|replace('_', ' ')|upper }}</dd>
+            </div>
+            <div class="meta-list__row">
+              <dt>Module</dt>
+              <dd>{{ resource.module.title }}</dd>
+            </div>
+            <div class="meta-list__row">
+              <dt>Original file</dt>
+              <dd>{{ resource.original_file_name }}</dd>
+            </div>
+          </dl>
+        </section>
+      </aside>
+
+      <div class="resource-main">
+        <section class="panel panel--tight">
+          <div
+            class="pdf-viewer"
+            data-pdf-resource-viewer
+            data-resource-id="{{ resource.id }}"
+            data-file-url="{{ file_url }}"
+            data-initial-page="{{ initial_page }}"
+            data-page-count="{{ resource.page_count or 0 }}"
+          >
+            <div class="pdf-viewer__toolbar">
+              <div class="pdf-viewer__group">
+                <button class="button button--secondary" type="button" data-action="prev-page">Previous</button>
+                <button class="button button--secondary" type="button" data-action="next-page">Next</button>
+              </div>
+
+              <div class="pdf-viewer__group pdf-viewer__group--meta">
+                <label class="viewer-field viewer-field--page">
+                  <span>Page</span>
+                  <input class="input" type="number" min="1" value="{{ initial_page }}" data-page-input />
+                </label>
+                <span class="pdf-viewer__page-label" data-page-label>
+                  of {{ resource.page_count or "?" }}
+                </span>
+              </div>
+
+              <div class="pdf-viewer__group">
+                <label class="viewer-field viewer-field--zoom">
+                  <span>Zoom</span>
+                  <select class="input" data-scale-select>
+                    <option value="1">100%</option>
+                    <option value="1.25" selected>125%</option>
+                    <option value="1.5">150%</option>
+                    <option value="1.75">175%</option>
+                  </select>
+                </label>
+                <a class="button button--secondary" href="{{ file_url }}" target="_blank" rel="noreferrer">Open original file</a>
+              </div>
+            </div>
+
+            <div class="banner banner--error pdf-viewer__error" data-pdf-error hidden></div>
+            <div class="pdf-viewer__loading" data-pdf-loading>Loading PDF viewer...</div>
+
+            <div class="pdf-viewer__viewport">
+              <div class="pdf-viewer__canvas-wrap">
+                <div class="pdf-viewer__page-surface">
+                  <canvas class="pdf-viewer__canvas" data-pdf-canvas></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script type="module" src="{{ request.url_for('static', path='js/pdf_resource_viewer.js') }}"></script>
+{% endblock %}

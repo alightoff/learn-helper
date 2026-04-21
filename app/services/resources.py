@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from pathlib import Path
 import re
 import shutil
@@ -7,7 +8,8 @@ import unicodedata
 from uuid import uuid4
 
 from fastapi import UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import Settings
 from app.db.enums import OutlineSourceType, ResourceType
@@ -19,6 +21,19 @@ _FILENAME_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
 class PdfImportError(Exception):
     """Raised when PDF import cannot be completed."""
+
+
+def get_resource_detail(db: Session, resource_id: int) -> Resource | None:
+    statement = (
+        select(Resource)
+        .where(Resource.id == resource_id)
+        .options(
+            selectinload(Resource.course),
+            selectinload(Resource.module),
+            selectinload(Resource.outline_items),
+        )
+    )
+    return db.scalar(statement)
 
 
 def import_pdf_resource(
@@ -73,6 +88,26 @@ def import_pdf_resource(
         db.rollback()
         _remove_file_if_exists(storage_absolute_path)
         raise
+
+
+def build_outline_tree(outline_items: list[ResourceOutlineItem]) -> list[dict[str, object]]:
+    children_by_parent: dict[int | None, list[ResourceOutlineItem]] = defaultdict(list)
+    for item in outline_items:
+        children_by_parent[item.parent_id].append(item)
+
+    for siblings in children_by_parent.values():
+        siblings.sort(key=lambda item: (item.position, item.id))
+
+    def build(parent_id: int | None) -> list[dict[str, object]]:
+        return [
+            {
+                "item": child,
+                "children": build(child.id),
+            }
+            for child in children_by_parent.get(parent_id, [])
+        ]
+
+    return build(None)
 
 
 def _persist_outline_items(

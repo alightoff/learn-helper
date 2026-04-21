@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ page_title }} | {{ request.app.state.settings.app_name }}</title>
     <link rel="stylesheet" href="{{ request.url_for('static', path='css/app.css') }}" />
-    <script src="{{ request.url_for('static', path='js/app.js') }}" defer></script>
+    {% block head_extra %}{% endblock %}
   </head>
   <body>
-    <div class="shell">
+    <div class="shell{% if shell_mode == 'wide' %} shell--wide{% endif %}">
       <header class="site-header">
         <div class="site-header__inner">
           <div class="brand">
@@ -32,5 +32,8 @@
         {% block content %}{% endblock %}
       </main>
     </div>
+    {% block scripts %}
+      <script src="{{ request.url_for('static', path='js/app.js') }}" defer></script>
+    {% endblock %}
   </body>
 </html>

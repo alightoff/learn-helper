@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.db.models import Course, ResourceOutlineItem
+from app.db.models import Course
 from app.db.session import get_db
 from app.services.courses import create_course, get_course_detail
 from app.services.modules import create_module, get_module_with_course
-from app.services.resources import PdfImportError, import_pdf_resource
+from app.services.resources import PdfImportError, build_outline_tree, import_pdf_resource
 from app.web import templates
 
 router = APIRouter()
@@ -38,9 +37,10 @@ async def course_detail(
             resource_views.append(
                 {
                     "resource": resource,
-                    "outline_tree": _build_outline_tree(resource.outline_items),
+                    "outline_tree": build_outline_tree(resource.outline_items),
                     "outline_count": len(resource.outline_items),
                     "file_url": request.url_for("uploads", path=resource.file_path),
+                    "viewer_url": request.url_for("resource_detail", resource_id=resource.id),
                 }
             )
 
@@ -119,27 +119,6 @@ async def upload_pdf_action(
         notice="PDF imported.",
         anchor=f"module-{module.id}",
     )
-
-
-def _build_outline_tree(outline_items: list[ResourceOutlineItem]) -> list[dict[str, object]]:
-    children_by_parent: dict[int | None, list[ResourceOutlineItem]] = defaultdict(list)
-    for item in outline_items:
-        children_by_parent[item.parent_id].append(item)
-
-    for siblings in children_by_parent.values():
-        siblings.sort(key=lambda item: (item.position, item.id))
-
-    def build(parent_id: int | None) -> list[dict[str, object]]:
-        return [
-            {
-                "item": child,
-                "children": build(child.id),
-            }
-            for child in children_by_parent.get(parent_id, [])
-        ]
-
-    return build(None)
-
 
 def _redirect_to_course(
     request: Request,
