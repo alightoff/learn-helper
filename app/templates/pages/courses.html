@@ -1,0 +1,144 @@
+{% extends "layouts/base.html" %}
+
+{% macro render_progress_summary(summary, summary_id) -%}
+  <div
+    class="progress-summary progress-summary--compact"
+    id="{{ summary_id }}"
+    data-progress-percent="{{ summary.progress_percent }}"
+    data-progress-status="{{ summary.status.value }}"
+  >
+    <div class="progress-summary__meta">
+      <span>{{ summary.progress_percent }}%</span>
+      <span>{{ summary.done_units }} / {{ summary.total_units }} done</span>
+      {% if summary.review_units %}
+        <span>{{ summary.review_units }} review</span>
+      {% endif %}
+      {% if summary.hard_units %}
+        <span>{{ summary.hard_units }} hard</span>
+      {% endif %}
+    </div>
+    <div class="progress-meter" aria-hidden="true">
+      <span class="progress-meter__value" style="width: {{ summary.progress_percent }}%"></span>
+    </div>
+  </div>
+{%- endmacro %}
+
+{% block content %}
+  <section class="page-stack courses-page">
+    <div class="page-header">
+      <div>
+        <span class="eyebrow">Courses</span>
+        <h2>Course library</h2>
+        <p>Create courses, open modules, and continue reading imported PDF resources.</p>
+      </div>
+      <div class="page-header__actions">
+        <button class="button" type="button" data-dialog-open="create-course-dialog">
+          <svg class="icon"><use href="#icon-plus"></use></svg>
+          <span data-i18n="action-new-course">New course</span>
+        </button>
+      </div>
+    </div>
+
+    {% if notice %}
+      <div class="banner">{{ notice }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="banner banner--error">{{ error }}</div>
+    {% endif %}
+
+    <section class="course-toolbar">
+      <div class="segmented-control" aria-label="Course filters">
+        <span class="segmented-control__item is-active">All Courses</span>
+        <span class="segmented-control__item">Archived</span>
+      </div>
+      <div class="course-toolbar__stats">
+        <span>{{ stats.course_count }} courses</span>
+        <span>{{ stats.module_count }} modules</span>
+        <span>{{ stats.pdf_count }} PDFs</span>
+      </div>
+    </section>
+
+    <section class="course-grid course-grid--catalog">
+      {% for course in courses %}
+        {% set course_progress = course_progress_summaries[course.id] %}
+        <a
+          class="course-card course-card--rich"
+          href="{{ request.url_for('course_detail', course_id=course.id) }}"
+          data-search-item="{{ course.title }} {{ course.topic or '' }} {{ course.description or '' }}"
+        >
+          <div class="course-card__header">
+            <span class="course-card__icon">
+              <svg class="icon"><use href="#icon-book"></use></svg>
+            </span>
+            <span class="status-badge status-badge--{{ course_progress.status.value }}">{{ course_progress.status_label }}</span>
+          </div>
+          <div>
+            <h4>{{ course.title }}</h4>
+            {% if course.description %}
+              <p>{{ course.description }}</p>
+            {% else %}
+              <p>No description yet.</p>
+            {% endif %}
+          </div>
+          {{ render_progress_summary(course_progress, "courses-page-course-progress-" ~ course.id) }}
+          <div class="course-meta">
+            <span>{{ course.topic or "Topic not set" }}</span>
+            <span>{{ course.modules|length }} module{% if course.modules|length != 1 %}s{% endif %}</span>
+            <span>{{ course.resources|length }} resource{% if course.resources|length != 1 %}s{% endif %}</span>
+          </div>
+          <span class="course-card__continue">
+            Open course
+            <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+          </span>
+        </a>
+      {% else %}
+        <button class="course-card course-card--empty" type="button" data-dialog-open="create-course-dialog">
+          <span class="course-card__icon">
+            <svg class="icon"><use href="#icon-plus"></use></svg>
+          </span>
+          <strong>Add the first course</strong>
+          <span>Organize your learning path and import PDFs into modules.</span>
+        </button>
+      {% endfor %}
+    </section>
+
+    <dialog class="modal-dialog" id="create-course-dialog" data-dialog>
+      <form class="modal-dialog__panel" method="post" action="{{ request.url_for('create_course_action') }}">
+        <div class="modal-dialog__header">
+          <div>
+            <h3>Create course</h3>
+            <p>Start with a title and optional topic. Modules and PDF import live on the course detail page.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">
+            <svg class="icon"><use href="#icon-chevron-left"></use></svg>
+          </button>
+        </div>
+
+        <div class="form-grid">
+          <label class="field field--full">
+            <span>Title</span>
+            <input class="input" type="text" name="title" maxlength="255" required />
+          </label>
+
+          <label class="field field--full">
+            <span>Topic</span>
+            <input class="input" type="text" name="topic" maxlength="255" />
+          </label>
+
+          <label class="field field--full">
+            <span>Description</span>
+            <textarea class="input input--textarea" name="description" rows="4"></textarea>
+          </label>
+        </div>
+
+        <div class="modal-dialog__actions">
+          <button class="button button--secondary" type="button" data-dialog-close data-i18n="action-cancel">Cancel</button>
+          <button class="button" type="submit">
+            <svg class="icon"><use href="#icon-plus"></use></svg>
+            <span data-i18n="action-create-course">Create course</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </section>
+{% endblock %}

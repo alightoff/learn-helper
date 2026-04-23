@@ -42,6 +42,7 @@
             class="viewer-outline__card"
             data-outline-status="{{ item_progress.status.value }}"
             data-outline-id="{{ node.item.id }}"
+            data-search-item="{{ node.item.title }} {% if node.item.page_number %}page {{ node.item.page_number }}{% endif %}"
           >
             <div class="viewer-outline__row">
               {% if node.item.page_number %}
@@ -142,7 +143,7 @@
         <div class="resource-session-widget__header">
           <div>
             <h3>Study timer</h3>
-            <p>{{ resource_session.session_type_label }}{% if resource_session.focus_label %} • {{ resource_session.focus_label }}{% endif %}</p>
+            <p>{{ resource_session.session_type_label }}{% if resource_session.focus_label %} / {{ resource_session.focus_label }}{% endif %}</p>
           </div>
           <span class="status-badge status-badge--{{ resource_session.status.value }}">{{ resource_session.status_label }}</span>
         </div>
@@ -238,7 +239,7 @@
       </section>
     {% endif %}
 
-    <section class="resource-viewer-layout">
+    <section class="resource-viewer-layout" data-resizable-viewer>
       <aside class="resource-sidebar">
         <section class="panel panel--tight">
           <div class="panel__header">
@@ -343,6 +344,8 @@
           </dl>
         </section>
       </aside>
+
+      <div class="reader-resizer" data-reader-resizer role="separator" aria-orientation="vertical" aria-label="Resize reader sidebar"></div>
 
       <div class="resource-main">
         <section class="panel panel--tight">

@@ -125,7 +125,7 @@
     <section class="modules-grid">
       {% for module_view in module_views %}
         {% set module = module_view.module %}
-        <article class="module-card" id="module-{{ module.id }}">
+        <article class="module-card" id="module-{{ module.id }}" data-search-item="{{ module.title }} {{ module.description or '' }}">
           <div class="module-card__header">
             <div>
               <h3>{{ module.title }}</h3>
@@ -171,7 +171,10 @@
               {% for resource_view in module_view.resources %}
                 {% set resource = resource_view.resource %}
                 {% set progress = resource_view.progress %}
-                <section class="resource-card">
+                <section
+                  class="resource-card"
+                  data-search-item="{{ resource.title }} {{ resource.original_file_name }} {{ resource.description or '' }} {{ module.title }}"
+                >
                   <div class="resource-card__header">
                     <div>
                       <h4>{{ resource.title }}</h4>

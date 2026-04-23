@@ -1,0 +1,51 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+  <section class="page-stack reader-index-page">
+    <div class="page-header">
+      <div>
+        <span class="eyebrow">PDF Reader</span>
+        <h2>Choose a resource to read.</h2>
+        <p>The reader opens imported PDF files, keeps page URLs stable, and syncs progress to outline items or page fallback.</p>
+      </div>
+      <div class="page-header__actions">
+        <a class="button button--secondary" href="{{ request.url_for('courses_index') }}">Import PDFs from courses</a>
+      </div>
+    </div>
+
+    <section class="resource-library-grid">
+      {% for item in resources %}
+        {% set resource = item.resource %}
+        {% set progress = item.progress %}
+        <a
+          class="resource-library-card"
+          href="{{ item.viewer_url }}"
+          data-search-item="{{ resource.title }} {{ resource.original_file_name }} {{ item.course.title }} {{ item.module.title }}"
+        >
+          <span class="resource-library-card__icon">
+            <svg class="icon"><use href="#icon-pdf"></use></svg>
+          </span>
+          <div>
+            <h3>{{ resource.title }}</h3>
+            <p>{{ item.course.title }} / {{ item.module.title }}</p>
+          </div>
+          <div class="progress-summary progress-summary--compact">
+            <div class="progress-summary__meta">
+              <span>{{ progress.progress_percent }}%</span>
+              <span>{{ resource.page_count or "?" }} pages</span>
+              <span>{{ progress.total_units }} units</span>
+            </div>
+            <div class="progress-meter" aria-hidden="true">
+              <span class="progress-meter__value" style="width: {{ progress.progress_percent }}%"></span>
+            </div>
+          </div>
+          <span class="status-badge status-badge--{{ progress.status.value }}">{{ progress.status_label }}</span>
+        </a>
+      {% else %}
+        <div class="empty-state">
+          No imported PDFs yet. Create a course, add a module, and import a PDF to open it here.
+        </div>
+      {% endfor %}
+    </section>
+  </section>
+{% endblock %}

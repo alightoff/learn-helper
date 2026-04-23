@@ -1,35 +1,218 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ page_title }} | {{ request.app.state.settings.app_name }}</title>
+    <script>
+      (function () {
+        try {
+          var storedTheme = window.localStorage.getItem("learn-helper-theme");
+          var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = storedTheme || (prefersDark ? "dark" : "light");
+        } catch (error) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="{{ request.url_for('static', path='css/app.css') }}" />
     {% block head_extra %}{% endblock %}
   </head>
   <body>
-    <div class="shell{% if shell_mode == 'wide' %} shell--wide{% endif %}">
-      <header class="site-header">
-        <div class="site-header__inner">
-          <div class="brand">
-            <p class="brand__subtitle">Local-first self-study workspace</p>
-            <h1 class="brand__title">{{ request.app.state.settings.app_name }}</h1>
-          </div>
+    {% set path = request.url.path %}
+    <svg aria-hidden="true" class="svg-sprite" focusable="false">
+      <symbol id="icon-dashboard" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="8" rx="2"></rect>
+        <rect x="14" y="3" width="7" height="5" rx="2"></rect>
+        <rect x="14" y="12" width="7" height="9" rx="2"></rect>
+        <rect x="3" y="15" width="7" height="6" rx="2"></rect>
+      </symbol>
+      <symbol id="icon-cap" viewBox="0 0 24 24">
+        <path d="M22 10 12 5 2 10l10 5 10-5z"></path>
+        <path d="M6 12.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5"></path>
+        <path d="M22 10v6"></path>
+      </symbol>
+      <symbol id="icon-book" viewBox="0 0 24 24">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+      </symbol>
+      <symbol id="icon-layers" viewBox="0 0 24 24">
+        <path d="m12 2 9 5-9 5-9-5 9-5z"></path>
+        <path d="m3 12 9 5 9-5"></path>
+        <path d="m3 17 9 5 9-5"></path>
+      </symbol>
+      <symbol id="icon-zap" viewBox="0 0 24 24">
+        <path d="M13 2 4 14h7l-1 8 10-13h-7l1-7z"></path>
+      </symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24">
+        <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path>
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.38a1.7 1.7 0 0 0-1 .14 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1-.14 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.62 15a1.7 1.7 0 0 0-.14-1 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0 .14-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.62a1.7 1.7 0 0 0 1-.14A1.7 1.7 0 0 0 11 2.93V3a2 2 0 1 1 4 0v-.07a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1 .14 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.38 9c.18.3.28.64.28 1s-.1.7-.28 1a1.7 1.7 0 0 0 .02 1z"></path>
+      </symbol>
+      <symbol id="icon-moon" viewBox="0 0 24 24">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path>
+      </symbol>
+      <symbol id="icon-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2"></path>
+        <path d="M12 20v2"></path>
+        <path d="m4.93 4.93 1.41 1.41"></path>
+        <path d="m17.66 17.66 1.41 1.41"></path>
+        <path d="M2 12h2"></path>
+        <path d="M20 12h2"></path>
+        <path d="m6.34 17.66-1.41 1.41"></path>
+        <path d="m19.07 4.93-1.41 1.41"></path>
+      </symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14"></path>
+        <path d="M5 12h14"></path>
+      </symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 7v5l3 2"></path>
+      </symbol>
+      <symbol id="icon-file" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <path d="M14 2v6h6"></path>
+        <path d="M8 13h8"></path>
+        <path d="M8 17h6"></path>
+      </symbol>
+      <symbol id="icon-pdf" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <path d="M14 2v6h6"></path>
+        <path d="M7 16h2a1.5 1.5 0 0 0 0-3H7v5"></path>
+        <path d="M12 13h1.5a2.5 2.5 0 0 1 0 5H12z"></path>
+        <path d="M17 18v-5h3"></path>
+        <path d="M17 15h2"></path>
+      </symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6"></path>
+      </symbol>
+      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6"></path>
+      </symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24">
+        <path d="m8 5 11 7-11 7V5z"></path>
+      </symbol>
+      <symbol id="icon-pause" viewBox="0 0 24 24">
+        <path d="M8 5v14"></path>
+        <path d="M16 5v14"></path>
+      </symbol>
+      <symbol id="icon-rotate" viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+        <path d="M3 3v6h6"></path>
+      </symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <path d="m17 8-5-5-5 5"></path>
+        <path d="M12 3v12"></path>
+      </symbol>
+      <symbol id="icon-filter" viewBox="0 0 24 24">
+        <path d="M3 5h18"></path>
+        <path d="M7 12h10"></path>
+        <path d="M10 19h4"></path>
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.5-3.5"></path>
+      </symbol>
+      <symbol id="icon-bell" viewBox="0 0 24 24">
+        <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+        <path d="M13.7 21a2 2 0 0 1-3.4 0"></path>
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5"></path>
+      </symbol>
+      <symbol id="icon-bolt" viewBox="0 0 24 24">
+        <path d="M13 2 5 14h6l-1 8 8-12h-6l1-8z"></path>
+      </symbol>
+      <symbol id="icon-infinity" viewBox="0 0 24 24">
+        <path d="M18.5 8.5c-2.2 0-3.8 2-6.5 5-2.7-3-4.3-5-6.5-5a3.5 3.5 0 0 0 0 7c2.2 0 3.8-2 6.5-5 2.7 3 4.3 5 6.5 5a3.5 3.5 0 0 0 0-7z"></path>
+      </symbol>
+      <symbol id="icon-chart" viewBox="0 0 24 24">
+        <path d="M3 3v18h18"></path>
+        <path d="M7 16v-4"></path>
+        <path d="M12 16V8"></path>
+        <path d="M17 16v-6"></path>
+      </symbol>
+      <symbol id="icon-external" viewBox="0 0 24 24">
+        <path d="M14 3h7v7"></path>
+        <path d="M10 14 21 3"></path>
+        <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"></path>
+      </symbol>
+    </svg>
 
-          <nav class="nav" aria-label="Primary navigation">
-            <a class="nav__link" href="{{ request.url_for('dashboard_home') }}">Dashboard</a>
-            <a class="nav__link" href="{{ request.url_for('courses_index') }}">Courses</a>
-            <a class="nav__link" href="{{ request.url_for('review_index') }}">Review</a>
-            <a class="nav__link" href="{{ request.url_for('sessions_index') }}">Sessions</a>
-            <span class="nav__pill">Notes</span>
-            <span class="nav__pill">Stats</span>
-            <span class="nav__pill">Settings</span>
-          </nav>
+    <div class="app-shell{% if shell_mode == 'wide' %} app-shell--wide{% endif %}" data-app-shell>
+      <aside class="app-sidebar" aria-label="Primary navigation">
+        <div class="sidebar-brand">
+          <a class="brand-link" href="{{ request.url_for('dashboard_home') }}" aria-label="{{ request.app.state.settings.app_name }} dashboard">
+            <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#icon-cap"></use></svg></span>
+            <span class="brand-wordmark">{{ request.app.state.settings.app_name }}</span>
+          </a>
+          <button class="icon-button sidebar-collapse" type="button" data-sidebar-toggle aria-label="Collapse sidebar">
+            <svg class="icon"><use href="#icon-chevron-left"></use></svg>
+          </button>
         </div>
-      </header>
 
-      <main>
-        {% block content %}{% endblock %}
+        <nav class="sidebar-nav">
+          <a class="sidebar-link{% if path == '/' %} is-active{% endif %}" href="{{ request.url_for('dashboard_home') }}">
+            <svg class="icon"><use href="#icon-dashboard"></use></svg>
+            <span class="sidebar-link__text" data-i18n="nav-dashboard">Dashboard</span>
+          </a>
+          <a class="sidebar-link{% if path.startswith('/courses') %} is-active{% endif %}" href="{{ request.url_for('courses_index') }}">
+            <svg class="icon"><use href="#icon-book"></use></svg>
+            <span class="sidebar-link__text" data-i18n="nav-courses">Courses</span>
+          </a>
+          <a class="sidebar-link{% if path.startswith('/reader') or path.startswith('/resources') %} is-active{% endif %}" href="{{ request.url_for('reader_index') }}">
+            <svg class="icon"><use href="#icon-pdf"></use></svg>
+            <span class="sidebar-link__text" data-i18n="nav-reader">PDF Reader</span>
+          </a>
+          <a class="sidebar-link{% if path.startswith('/review') %} is-active{% endif %}" href="{{ request.url_for('review_index') }}">
+            <svg class="icon"><use href="#icon-layers"></use></svg>
+            <span class="sidebar-link__text" data-i18n="nav-review">Review Queue</span>
+          </a>
+          <a class="sidebar-link{% if path.startswith('/sessions') %} is-active{% endif %}" href="{{ request.url_for('sessions_index') }}">
+            <svg class="icon"><use href="#icon-clock"></use></svg>
+            <span class="sidebar-link__text" data-i18n="nav-sessions">Sessions</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-tools">
+            <button class="icon-button" type="button" data-theme-toggle aria-label="Toggle theme">
+              <svg class="icon theme-icon theme-icon--moon"><use href="#icon-moon"></use></svg>
+              <svg class="icon theme-icon theme-icon--sun"><use href="#icon-sun"></use></svg>
+            </button>
+            <button class="lang-toggle" type="button" data-lang-toggle>EN</button>
+          </div>
+          <div class="sidebar-user">
+            <span class="sidebar-user__avatar">LH</span>
+            <span class="sidebar-user__meta">
+              <strong>Local Scholar</strong>
+              <small>Self-study workspace</small>
+            </span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="app-main">
+        <header class="app-topbar">
+          <h1 data-page-title="{{ page_title }}">{{ page_title }}</h1>
+          <div class="topbar-actions">
+            <label class="global-search">
+              <svg class="icon"><use href="#icon-search"></use></svg>
+              <input type="search" placeholder="Search resources..." data-global-search data-i18n-placeholder="search-placeholder" />
+            </label>
+            <a class="topbar-bell" href="{{ request.url_for('review_index') }}" aria-label="Open review queue">
+              <svg class="icon"><use href="#icon-bell"></use></svg>
+              <span aria-hidden="true"></span>
+            </a>
+          </div>
+        </header>
+        <div class="app-content">
+          <div class="app-main__inner{% if shell_mode == 'wide' %} app-main__inner--wide{% endif %}">
+            {% block content %}{% endblock %}
+          </div>
+        </div>
       </main>
     </div>
     {% block scripts %}

@@ -89,6 +89,29 @@ function resolvePomodoroState(elapsedSeconds, workSeconds, breakSeconds, targetC
   };
 }
 
+function playCompletionSound() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return;
+  }
+
+  const audioContext = new AudioContextClass();
+  const gain = audioContext.createGain();
+  gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.18, audioContext.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.9);
+  gain.connect(audioContext.destination);
+
+  [660, 880, 990].forEach((frequency, index) => {
+    const oscillator = audioContext.createOscillator();
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequency;
+    oscillator.connect(gain);
+    oscillator.start(audioContext.currentTime + (index * 0.16));
+    oscillator.stop(audioContext.currentTime + 0.14 + (index * 0.16));
+  });
+}
+
 function updateTimerCard(timerCard) {
   const status = timerCard.dataset.sessionStatus;
   const baseElapsedSeconds = Number.parseInt(timerCard.dataset.sessionElapsedSeconds || "0", 10) || 0;
@@ -122,6 +145,11 @@ function updateTimerCard(timerCard) {
   );
   if (!pomodoroState) {
     return;
+  }
+
+  if (pomodoroState.isComplete && timerCard.dataset.completionSoundPlayed !== "true") {
+    timerCard.dataset.completionSoundPlayed = "true";
+    playCompletionSound();
   }
 
   const phaseTarget = timerCard.querySelector("[data-session-phase]");
@@ -173,6 +201,7 @@ function initStartSessionForm() {
   const targetCyclesInput = form.querySelector("[data-target-cycles-input]");
   const resourceSelect = form.querySelector("[data-session-resource-select]");
   const outlineSelect = form.querySelector("[data-session-outline-select]");
+  const modeButtons = form.closest(".session-setup")?.querySelectorAll("[data-session-mode-option]") || [];
 
   const syncPomodoroFields = () => {
     const showPomodoroFields = timerModeSelect && timerModeSelect.value === "pomodoro";
@@ -182,6 +211,9 @@ function initStartSessionForm() {
     if (targetCyclesInput instanceof HTMLInputElement) {
       targetCyclesInput.required = showPomodoroFields;
     }
+    modeButtons.forEach((button) => {
+      button.classList.toggle("session-mode-card--active", button.dataset.sessionModeOption === timerModeSelect.value);
+    });
   };
 
   const syncOutlineOptions = () => {
@@ -216,6 +248,14 @@ function initStartSessionForm() {
   if (timerModeSelect) {
     timerModeSelect.addEventListener("change", syncPomodoroFields);
   }
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (timerModeSelect instanceof HTMLSelectElement) {
+        timerModeSelect.value = button.dataset.sessionModeOption || timerModeSelect.value;
+        timerModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+  });
   if (resourceSelect) {
     resourceSelect.addEventListener("change", syncOutlineOptions);
   }

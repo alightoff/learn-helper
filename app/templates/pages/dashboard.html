@@ -24,12 +24,18 @@
 {%- endmacro %}
 
 {% block content %}
-  <section class="page-stack">
-    <div class="page-header">
+  <section class="page-stack dashboard-page">
+    <div class="dashboard-header">
       <div>
         <span class="eyebrow">Learning Flow</span>
-        <h2>Courses, modules, uploaded PDFs, and study status now share one flow.</h2>
-        <p>Create a course, add a module, import a PDF, and track study status on outline items or page fallback when no outline exists.</p>
+        <h2>Professional study workspace</h2>
+        <p>Courses, PDF reader, progress states, review queue, and focus sessions are connected to your local data.</p>
+      </div>
+      <div class="page-header__actions">
+        <a class="button" href="{{ request.url_for('courses_index') }}">
+          <svg class="icon"><use href="#icon-plus"></use></svg>
+          <span data-i18n="action-new-course">New course</span>
+        </a>
       </div>
     </div>
 
@@ -40,81 +46,75 @@
       <div class="banner banner--error">{{ error }}</div>
     {% endif %}
 
-    <section class="kpi-grid">
-      <article class="card">
-        <h3>Courses</h3>
-        <p class="kpi">{{ stats.course_count }}</p>
+    <section class="kpi-grid dashboard-stats" aria-label="Learning summary">
+      <article class="stat-card stat-card--featured">
+        <span class="stat-card__icon stat-card__icon--blue"><svg class="icon"><use href="#icon-book"></use></svg></span>
+        <strong>{{ stats.active_course_count }}</strong>
+        <span data-i18n="label-active-courses">Active courses</span>
+        <small>{{ stats.course_count }} total</small>
       </article>
-      <article class="card">
-        <h3>Modules</h3>
-        <p class="kpi">{{ stats.module_count }}</p>
+      <article class="stat-card">
+        <span class="stat-card__icon stat-card__icon--emerald"><svg class="icon"><use href="#icon-check"></use></svg></span>
+        <strong>{{ stats.modules_done_count }}</strong>
+        <span data-i18n="label-modules-done">Modules done</span>
+        <div class="progress-meter" aria-hidden="true">
+          <span class="progress-meter__value progress-meter__value--success" style="width: {% if stats.module_count %}{{ (stats.modules_done_count / stats.module_count * 100)|round|int }}{% else %}0{% endif %}%"></span>
+        </div>
       </article>
-      <article class="card">
-        <h3>PDF resources</h3>
-        <p class="kpi">{{ stats.pdf_count }}</p>
+      <article class="stat-card">
+        <span class="stat-card__icon stat-card__icon--amber"><svg class="icon"><use href="#icon-layers"></use></svg></span>
+        <strong>{{ stats.review_queue_count }}</strong>
+        <span data-i18n="label-review-queue">Review queue</span>
+        <small>{{ review_stats.hard }} hard / {{ review_stats.review }} review</small>
       </article>
-      <article class="card">
-        <h3>Study units</h3>
-        <p class="kpi">{{ stats.study_unit_count }}</p>
+      <article class="stat-card">
+        <span class="stat-card__icon stat-card__icon--violet"><svg class="icon"><use href="#icon-clock"></use></svg></span>
+        <strong>{{ stats.weekly_study_time }}</strong>
+        <span data-i18n="label-study-time">Study time</span>
+        <small>Last 7 days</small>
       </article>
     </section>
 
-    <div class="grid grid--wide">
-      <section class="panel">
-        <div class="panel__header">
+    <div class="dashboard-grid">
+      <section class="dashboard-main">
+        <div class="section-heading">
           <div>
-            <h3>Create course</h3>
-            <p>Start a course first. The detail page handles module creation, PDF import, and progress tracking.</p>
+            <h3>Current courses</h3>
+            <p>Jump back into reading, imports, or status updates.</p>
           </div>
+          <a class="text-link" href="{{ request.url_for('courses_index') }}">All courses</a>
         </div>
 
-        <form class="form-grid" method="post" action="{{ request.url_for('create_course_action') }}">
-          <label class="field">
-            <span>Title</span>
-            <input class="input" type="text" name="title" maxlength="255" required />
-          </label>
-
-          <label class="field">
-            <span>Topic</span>
-            <input class="input" type="text" name="topic" maxlength="255" />
-          </label>
-
-          <label class="field field--full">
-            <span>Description</span>
-            <textarea class="input input--textarea" name="description" rows="4"></textarea>
-          </label>
-
-          <div class="form-actions field--full">
-            <button class="button" type="submit">Create course</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Courses</h3>
-            <p>Recent courses stay visible here so you can jump straight back into reading and progress updates.</p>
-          </div>
-        </div>
-
-        <div class="stack">
+        <div class="course-grid">
           {% for course in courses %}
             {% set course_progress = course_progress_summaries[course.id] %}
-            <a class="course-card" href="{{ request.url_for('course_detail', course_id=course.id) }}">
+            <a
+              class="course-card course-card--rich"
+              href="{{ request.url_for('course_detail', course_id=course.id) }}"
+              data-search-item="{{ course.title }} {{ course.topic or '' }} {{ course.description or '' }}"
+            >
               <div class="course-card__header">
-                <h4>{{ course.title }}</h4>
+                <span class="course-card__icon">
+                  <svg class="icon"><use href="#icon-book"></use></svg>
+                </span>
                 <span class="status-badge status-badge--{{ course_progress.status.value }}">{{ course_progress.status_label }}</span>
               </div>
-              {% if course.description %}
-                <p>{{ course.description }}</p>
-              {% endif %}
+              <div>
+                <h4>{{ course.title }}</h4>
+                {% if course.description %}
+                  <p>{{ course.description }}</p>
+                {% endif %}
+              </div>
               {{ render_progress_summary(course_progress, "dashboard-course-progress-" ~ course.id) }}
               <div class="course-meta">
                 <span>{{ course.modules|length }} module{% if course.modules|length != 1 %}s{% endif %}</span>
                 <span>{{ course.resources|length }} resource{% if course.resources|length != 1 %}s{% endif %}</span>
                 <span>{{ course_progress.total_units }} study unit{% if course_progress.total_units != 1 %}s{% endif %}</span>
               </div>
+              <span class="course-card__continue">
+                Continue
+                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+              </span>
             </a>
           {% else %}
             <div class="empty-state">
@@ -123,6 +123,166 @@
           {% endfor %}
         </div>
       </section>
+
+      <aside class="dashboard-side">
+        <section
+          class="study-session-card"
+          {% if active_session %}
+            data-session-timer
+            data-session-status="{{ active_session.status.value }}"
+            data-session-elapsed-seconds="{{ active_session.elapsed_seconds }}"
+            {% if active_session.active_started_at_iso %}data-session-active-started-at="{{ active_session.active_started_at_iso }}"{% endif %}
+            data-timer-mode="{{ active_session.timer_mode.value }}"
+            {% if active_session.pomodoro %}
+              data-pomodoro-work-seconds="{{ active_session.pomodoro.work_interval_seconds }}"
+              data-pomodoro-break-seconds="{{ active_session.pomodoro.break_interval_seconds }}"
+              {% if active_session.pomodoro.target_cycles %}data-target-cycles="{{ active_session.pomodoro.target_cycles }}"{% endif %}
+            {% endif %}
+          {% endif %}
+        >
+          <div class="study-session-card__header">
+            <span>Study session</span>
+            {% if active_session %}
+              <span class="status-badge status-badge--{{ active_session.status.value }}">{{ active_session.status_label }}</span>
+            {% else %}
+              <span class="status-badge status-badge--not_started">Ready</span>
+            {% endif %}
+          </div>
+
+          {% if active_session %}
+            <strong class="study-session-card__time" data-session-elapsed>{{ active_session.elapsed_label }}</strong>
+            <p>{{ active_session.course_title }}{% if active_session.focus_label %} / {{ active_session.focus_label }}{% endif %}</p>
+            {% if active_session.pomodoro %}
+              <div class="session-strip">
+                <span data-session-phase>{{ active_session.pomodoro.phase_label }}</span>
+                <span data-session-phase-remaining>{{ active_session.pomodoro.phase_remaining_label }}</span>
+                <span data-session-target-progress>{{ active_session.pomodoro.target_progress_label }}</span>
+              </div>
+            {% endif %}
+            <div class="form-actions">
+              {% if active_session.can_pause %}
+                <form method="post" action="{{ request.url_for('pause_study_session_action', session_id=active_session.id) }}">
+                  <button class="button button--secondary" type="submit">
+                    <svg class="icon"><use href="#icon-pause"></use></svg>
+                    Pause
+                  </button>
+                </form>
+              {% endif %}
+              {% if active_session.can_resume %}
+                <form method="post" action="{{ request.url_for('resume_study_session_action', session_id=active_session.id) }}">
+                  <button class="button button--secondary" type="submit">
+                    <svg class="icon"><use href="#icon-play"></use></svg>
+                    Resume
+                  </button>
+                </form>
+              {% endif %}
+              <form method="post" action="{{ request.url_for('stop_study_session_action', session_id=active_session.id) }}">
+                <button class="button" type="submit">Stop and save</button>
+              </form>
+            </div>
+          {% else %}
+            <strong class="study-session-card__time">25:00</strong>
+            <p>Start a focused free timer or pomodoro from the sessions page.</p>
+            <a class="button" href="{{ request.url_for('sessions_index') }}">
+              <svg class="icon"><use href="#icon-play"></use></svg>
+              Start session
+            </a>
+          {% endif %}
+        </section>
+
+        <section class="panel panel--tight top-resources-card">
+          <div class="panel__header">
+            <div>
+              <h3>Top resources</h3>
+              <p>Recently imported PDFs ready for reading.</p>
+            </div>
+            <svg class="icon"><use href="#icon-external"></use></svg>
+          </div>
+          <div class="resource-mini-list">
+            {% for item in top_resources %}
+              {% set resource = item.resource %}
+              {% set progress = item.progress %}
+              <a
+                class="resource-mini"
+                href="{{ item.viewer_url }}"
+                data-search-item="{{ resource.title }} {{ resource.original_file_name }} {{ item.course.title }} {{ item.module.title }}"
+              >
+                <span class="resource-mini__icon"><svg class="icon"><use href="#icon-pdf"></use></svg></span>
+                <span class="resource-mini__body">
+                  <strong>{{ resource.title }}</strong>
+                  <small>{{ progress.progress_percent }}% / {{ resource.page_count or "?" }} pages</small>
+                </span>
+              </a>
+            {% else %}
+              <div class="empty-state empty-state--inline">
+                Import a PDF inside a module to see it here.
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="dashboard-grid dashboard-grid--lower">
+      <section class="panel panel--tight">
+        <div class="panel__header">
+          <div>
+            <h3>Review queue</h3>
+            <p>Hard and review items from current progress records.</p>
+          </div>
+          <a class="text-link" href="{{ request.url_for('review_index') }}">{{ review_stats.total }} total</a>
+        </div>
+
+        <div class="review-list">
+          {% for item in review_queue %}
+            <a
+              class="review-row"
+              href="{% if item.can_open_source %}{{ request.url_for('resource_detail', resource_id=item.resource_id) }}?page={{ item.source_page }}{% if item.source_anchor %}#{{ item.source_anchor }}{% endif %}{% else %}{{ request.url_for('course_detail', course_id=item.course_id) }}#module-{{ item.module_id }}{% endif %}"
+              data-search-item="{{ item.unit_title }} {{ item.resource_title }} {{ item.module_title }} {{ item.course_title }}"
+            >
+              <span class="review-row__dot review-row__dot--{{ item.status.value }}"></span>
+              <span class="review-row__body">
+                <strong>{{ item.unit_title }}</strong>
+                <small>{{ item.resource_title }} / {{ item.module_title }}</small>
+              </span>
+              <svg class="icon review-row__chevron"><use href="#icon-chevron-right"></use></svg>
+            </a>
+          {% else %}
+            <div class="empty-state empty-state--inline">
+              No review items match the current filters.
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>Learning library</h3>
+            <p>Course creation moved to the Courses page modal. Keep the dashboard focused on active work and review.</p>
+          </div>
+        </div>
+        <div class="library-summary">
+          <article>
+            <strong>{{ stats.course_count }}</strong>
+            <span>Courses</span>
+          </article>
+          <article>
+            <strong>{{ stats.module_count }}</strong>
+            <span>Modules</span>
+          </article>
+          <article>
+            <strong>{{ stats.pdf_count }}</strong>
+            <span>PDFs</span>
+          </article>
+        </div>
+        <a class="button button--secondary" href="{{ request.url_for('courses_index') }}" data-i18n="action-open-courses">Open courses</a>
+      </section>
     </div>
   </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script type="module" src="{{ request.url_for('static', path='js/session_timer.js') }}"></script>
 {% endblock %}

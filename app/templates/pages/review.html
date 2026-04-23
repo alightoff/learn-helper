@@ -72,32 +72,36 @@
     <section class="stack">
       {% for item in review_queue %}
         <article
-          class="panel panel--tight review-card"
+          class="review-card review-card--queue"
           id="{{ item.dom_id }}"
           data-review-item="{{ item.queue_key }}"
           data-review-status="{{ item.status.value }}"
           data-review-course-id="{{ item.course_id }}"
           data-review-module-id="{{ item.module_id }}"
           data-review-resource-id="{{ item.resource_id }}"
+          data-search-item="{{ item.unit_title }} {{ item.resource_title }} {{ item.module_title }} {{ item.course_title }} {{ item.source_label }}"
         >
-          <div class="review-card__header">
-            <div>
-              <div class="review-card__eyebrows">
-                <span class="eyebrow">{{ item.unit_kind_label }}</span>
-                <span class="pill">{{ item.course_title }}</span>
-                <span class="pill">{{ item.module_title }}</span>
-              </div>
-              <h3>{{ item.unit_title }}</h3>
-              <p>{{ item.resource_title }}</p>
-            </div>
-            <span class="status-badge status-badge--{{ item.status.value }}">{{ item.status_label }}</span>
+          <div class="review-card__icon review-card__icon--{{ item.status.value }}">
+            {% if item.status.value == "hard" %}
+              <svg class="icon"><use href="#icon-bolt"></use></svg>
+            {% else %}
+              <svg class="icon"><use href="#icon-rotate"></use></svg>
+            {% endif %}
           </div>
 
-          <div class="review-card__meta">
-            <span>Source: {{ item.source_label }}</span>
-            {% if item.last_interacted_label %}
-              <span>Updated {{ item.last_interacted_label }}</span>
-            {% endif %}
+          <div class="review-card__content">
+            <div class="review-card__eyebrows">
+              <span class="status-badge status-badge--{{ item.status.value }}">{{ item.status_label }}</span>
+              <span>{{ item.course_title }} / {{ item.source_label }}</span>
+            </div>
+            <h3>{{ item.unit_title }}</h3>
+            <p>{{ item.resource_title }} / {{ item.module_title }}</p>
+            <div class="review-card__meta">
+              <span>{{ item.unit_kind_label }}</span>
+              {% if item.last_interacted_label %}
+                <span>Updated {{ item.last_interacted_label }}</span>
+              {% endif %}
+            </div>
           </div>
 
           <div class="review-card__actions">
@@ -107,7 +111,7 @@
                 href="{{ request.url_for('resource_detail', resource_id=item.resource_id) }}?page={{ item.source_page }}{% if item.source_anchor %}#{{ item.source_anchor }}{% endif %}"
                 data-review-source-link
               >
-                Open source
+                Practice
               </a>
             {% else %}
               <span class="pill">Source jump is not available for this resource type yet.</span>

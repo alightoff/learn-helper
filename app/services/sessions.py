@@ -81,6 +81,9 @@ def build_session_scope_options(db: Session) -> tuple[list[dict[str, Any]], list
                     {
                         "id": item.id,
                         "label": _build_outline_item_label(item),
+                        "status": item.status.value,
+                        "status_label": item.status.value.replace("_", " ").title(),
+                        "is_done": item.status == ProgressStatus.DONE,
                     }
                     for item in outline_items
                 ],
